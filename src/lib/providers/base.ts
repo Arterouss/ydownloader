@@ -66,6 +66,10 @@ export abstract class BaseProvider {
   ): Promise<{ url: string; headers?: Record<string, string> } | null>;
 
   protected mockFormats(platform: string): MediaFormat[] {
+    const sampleVideo = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
+    const sampleAudio = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+    const sampleImage = "https://picsum.photos/seed/media/1280/720.jpg";
+
     return [
       {
         id: "4k-60",
@@ -78,6 +82,7 @@ export abstract class BaseProvider {
         fileSize: 850_000_000,
         fileSizeLabel: "850 MB",
         hasAudio: true,
+        url: sampleVideo,
       },
       {
         id: "1080p-60",
@@ -90,6 +95,7 @@ export abstract class BaseProvider {
         fileSize: 180_000_000,
         fileSizeLabel: "180 MB",
         hasAudio: true,
+        url: sampleVideo,
       },
       {
         id: "1080p-30",
@@ -102,6 +108,7 @@ export abstract class BaseProvider {
         fileSize: 95_000_000,
         fileSizeLabel: "95 MB",
         hasAudio: true,
+        url: sampleVideo,
       },
       {
         id: "720p-60",
@@ -114,6 +121,7 @@ export abstract class BaseProvider {
         fileSize: 75_000_000,
         fileSizeLabel: "75 MB",
         hasAudio: true,
+        url: sampleVideo,
       },
       {
         id: "720p-30",
@@ -126,6 +134,7 @@ export abstract class BaseProvider {
         fileSize: 45_000_000,
         fileSizeLabel: "45 MB",
         hasAudio: true,
+        url: sampleVideo,
       },
       {
         id: "480p",
@@ -138,6 +147,7 @@ export abstract class BaseProvider {
         fileSize: 22_000_000,
         fileSizeLabel: "22 MB",
         hasAudio: true,
+        url: sampleVideo,
       },
       {
         id: "360p",
@@ -150,6 +160,7 @@ export abstract class BaseProvider {
         fileSize: 14_000_000,
         fileSizeLabel: "14 MB",
         hasAudio: true,
+        url: sampleVideo,
       },
       {
         id: "240p",
@@ -162,6 +173,7 @@ export abstract class BaseProvider {
         fileSize: 7_500_000,
         fileSizeLabel: "7.5 MB",
         hasAudio: true,
+        url: sampleVideo,
       },
       {
         id: "144p",
@@ -174,6 +186,7 @@ export abstract class BaseProvider {
         fileSize: 3_200_000,
         fileSizeLabel: "3.2 MB",
         hasAudio: true,
+        url: sampleVideo,
       },
       {
         id: "audio-320",
@@ -184,6 +197,7 @@ export abstract class BaseProvider {
         ext: "mp3",
         fileSize: 8_500_000,
         fileSizeLabel: "8.5 MB",
+        url: sampleAudio,
       },
       {
         id: "audio-256",
@@ -194,6 +208,7 @@ export abstract class BaseProvider {
         ext: "m4a",
         fileSize: 6_800_000,
         fileSizeLabel: "6.8 MB",
+        url: sampleAudio,
       },
       {
         id: "audio-128",
@@ -204,6 +219,7 @@ export abstract class BaseProvider {
         ext: "mp3",
         fileSize: 3_400_000,
         fileSizeLabel: "3.4 MB",
+        url: sampleAudio,
       },
       {
         id: "thumb-orig",
@@ -213,6 +229,7 @@ export abstract class BaseProvider {
         ext: "jpg",
         fileSize: 450_000,
         fileSizeLabel: "450 KB",
+        url: sampleImage,
       },
       {
         id: "thumb-hd",
@@ -223,9 +240,11 @@ export abstract class BaseProvider {
         ext: "png",
         fileSize: 1_200_000,
         fileSizeLabel: "1.2 MB",
+        url: sampleImage,
       },
     ];
   }
+
 
   protected delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
