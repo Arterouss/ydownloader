@@ -65,21 +65,11 @@ export async function triggerFileDownload(title: string, ext: string, contentUrl
   const safeTitle = (title || "media").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 50);
   const fileName = `${safeTitle}.${ext || "mp4"}`;
 
-  const sampleVideo = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
-  const sampleAudio = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
-  const sampleImage = "https://picsum.photos/seed/media/1280/720.jpg";
-
-  const targetUrl =
-    contentUrl && contentUrl.startsWith("http") && !contentUrl.includes("example.com")
-      ? contentUrl
-      : ext === "mp3" || ext === "m4a"
-        ? sampleAudio
-        : ext === "jpg" || ext === "png" || ext === "jpeg"
-          ? sampleImage
-          : sampleVideo;
+  // Route download through same-origin proxy to eliminate CORS & XML AccessDenied errors
+  const proxyUrl = `/api/sample?ext=${encodeURIComponent(ext || "mp4")}&title=${encodeURIComponent(safeTitle)}&url=${encodeURIComponent(contentUrl || "")}`;
 
   try {
-    const res = await fetch(targetUrl);
+    const res = await fetch(proxyUrl);
     if (!res.ok) throw new Error("Fetch failed");
     const blob = await res.blob();
     const blobUrl = URL.createObjectURL(blob);
@@ -90,17 +80,17 @@ export async function triggerFileDownload(title: string, ext: string, contentUrl
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-  } catch {
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+  } catch (err) {
+    console.warn("Proxy download fallback:", err);
     const a = document.createElement("a");
-    a.href = targetUrl;
+    a.href = proxyUrl;
     a.download = fileName;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
   }
 }
+
 
 

@@ -169,7 +169,7 @@ export abstract class BaseProvider {
 
   protected mockFormats(platform: string): MediaFormat[] {
 
-    const sampleVideo = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
+    const sampleVideo = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
     const sampleAudio = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
     const sampleImage = "https://picsum.photos/seed/media/1280/720.jpg";
 
