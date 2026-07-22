@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import type { MediaMetadata, MediaFormat } from "@/lib/providers/base";
+import { triggerFileDownload } from "@/lib/utils";
 
 export type QueueItemStatus =
   | "queued"
@@ -221,12 +222,16 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
           speed: 0,
           status: "completed",
         });
+        const done = get().queue.find((q) => q.id === id);
+        if (done) {
+          triggerFileDownload(done.metadata.title, done.format.ext, done.format.url);
+        }
         set((s) => {
-          const done = s.queue.find((q) => q.id === id);
-          if (!done) return s;
+          const itemDone = s.queue.find((q) => q.id === id);
+          if (!itemDone) return s;
           return {
             history: [
-              { ...done, status: "completed" as const, progress: 100 },
+              { ...itemDone, status: "completed" as const, progress: 100 },
               ...s.history,
             ].slice(0, 50),
           };

@@ -16,7 +16,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { cn, formatSpeed } from "@/lib/utils";
+import { cn, formatSpeed, triggerFileDownload } from "@/lib/utils";
 import { useDownloadStore, type QueueItem } from "@/store/download-store";
 
 export function DownloadQueueBar() {
@@ -222,11 +222,23 @@ function QueueRow({
             <X className="h-3.5 w-3.5" />
           </Button>
         )}
+        {isDone && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="text-indigo-400 hover:bg-indigo-500/15 hover:text-indigo-300"
+            title="Simpan File Ke Perangkat / Galeri"
+            onClick={() => triggerFileDownload(item.metadata.title, item.format.ext, item.format.url)}
+          >
+            <Download className="h-3.5 w-3.5" />
+          </Button>
+        )}
         {(isDone || isFailed) && (
           <Button variant="ghost" size="icon-sm" onClick={onRemove}>
             <X className="h-3.5 w-3.5" />
           </Button>
         )}
+
       </div>
     </div>
   );

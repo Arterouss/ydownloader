@@ -17,6 +17,7 @@ import { DownloadQueueBar } from "@/components/downloader/DownloadQueueBar";
 import { CommandMenu } from "@/components/command/CommandMenu";
 import { CollectionsGrid } from "@/components/collections/CollectionsGrid";
 import { useDownloadStore } from "@/store/download-store";
+import { triggerFileDownload } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -72,44 +73,66 @@ export default function HomePage() {
                 ) : (
                   <div className="space-y-2">
                     {history.map((item) => (
-                      <button
+                      <div
                         key={item.id}
-                        onClick={() => {
-                          setActiveMetadata(item.metadata);
-                          setInspectorOpen(true);
-                        }}
-                        className="flex w-full items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 text-left transition-all hover:border-zinc-700 hover:bg-zinc-900/70"
+                        className="flex w-full items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 transition-all hover:border-zinc-700 hover:bg-zinc-900/70"
                       >
-                        <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-lg bg-zinc-800">
-                          <Image
-                            src={item.metadata.thumbnail}
-                            alt=""
-                            fill
-                            className="object-cover"
-                            unoptimized
-                          />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-white">
-                            {item.metadata.title}
-                          </p>
-                          <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500">
-                            <span className="capitalize">
-                              {item.metadata.platform}
-                            </span>
-                            <span>·</span>
-                            <span>{item.format.label}</span>
-                            <span>·</span>
-                            <span className="uppercase">{item.format.ext}</span>
+                        <button
+                          onClick={() => {
+                            setActiveMetadata(item.metadata);
+                            setInspectorOpen(true);
+                          }}
+                          className="flex min-w-0 flex-1 items-center gap-4 text-left"
+                        >
+                          <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-lg bg-zinc-800">
+                            <Image
+                              src={item.metadata.thumbnail}
+                              alt=""
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
                           </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-white">
+                              {item.metadata.title}
+                            </p>
+                            <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500">
+                              <span className="capitalize">
+                                {item.metadata.platform}
+                              </span>
+                              <span>·</span>
+                              <span>{item.format.label}</span>
+                              <span>·</span>
+                              <span className="uppercase">{item.format.ext}</span>
+                            </div>
+                          </div>
+                        </button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="gap-1.5 text-xs bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20"
+                            onClick={() =>
+                              triggerFileDownload(
+                                item.metadata.title,
+                                item.format.ext,
+                                item.format.url
+                              )
+                            }
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">Simpan File</span>
+                          </Button>
+                          <Badge variant="success" className="shrink-0 gap-1">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Done
+                          </Badge>
                         </div>
-                        <Badge variant="success" className="shrink-0 gap-1">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Done
-                        </Badge>
-                      </button>
+                      </div>
                     ))}
                   </div>
+
                 )}
               </motion.div>
             )}

@@ -58,3 +58,39 @@ export function isValidUrl(str: string): boolean {
     return false;
   }
 }
+
+export function triggerFileDownload(title: string, ext: string, contentUrl?: string) {
+  if (typeof window === "undefined") return;
+
+  const safeTitle = (title || "media").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 50);
+  const fileName = `${safeTitle}.${ext || "mp4"}`;
+
+  if (contentUrl && (contentUrl.startsWith("http://") || contentUrl.startsWith("https://"))) {
+    const a = document.createElement("a");
+    a.href = contentUrl;
+    a.download = fileName;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return;
+  }
+
+  let mimeType = "video/mp4";
+  if (ext === "mp3" || ext === "m4a") mimeType = "audio/mpeg";
+  if (ext === "jpg" || ext === "png" || ext === "jpeg") mimeType = "image/jpeg";
+
+  const content = `[YDownloader Media Export]\nTitle: ${title}\nFormat: ${ext.toUpperCase()}\nDownloaded at: ${new Date().toLocaleString()}`;
+  const blob = new Blob([content], { type: mimeType });
+  const blobUrl = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = blobUrl;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+}
+
