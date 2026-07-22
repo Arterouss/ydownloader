@@ -46,7 +46,7 @@ export function DownloadQueueBar() {
       initial={{ y: 100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: 100, opacity: 0 }}
-      className="fixed bottom-0 left-[68px] right-0 z-40 px-4 pb-4"
+      className="fixed bottom-16 left-0 right-0 z-40 px-3 pb-2 md:bottom-0 md:left-[68px] md:px-4 md:pb-4"
     >
       <div className="mx-auto max-w-4xl overflow-hidden rounded-2xl border border-zinc-700/50 bg-zinc-900/90 shadow-2xl shadow-black/40 backdrop-blur-xl">
         {/* Header */}

@@ -233,7 +233,7 @@ export function UrlInputCanvas() {
           <Button
             onClick={handleParse}
             disabled={isParsing || !url.trim()}
-            className="h-11 shrink-0 rounded-xl bg-indigo-500 px-5 font-semibold text-white shadow-lg shadow-indigo-500/25 hover:bg-indigo-400 disabled:opacity-40"
+            className="h-11 shrink-0 rounded-xl bg-indigo-500 px-3 text-xs font-semibold text-white shadow-lg shadow-indigo-500/25 hover:bg-indigo-400 disabled:opacity-40 sm:px-5 sm:text-sm"
           >
             {isParsing ? (
               <>

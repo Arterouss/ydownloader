@@ -116,7 +116,7 @@ export function MediaInspectorModal() {
               </Button>
             </div>
 
-            <div className="grid max-h-[80vh] grid-cols-1 md:grid-cols-[340px_1fr]">
+            <div className="grid max-h-[85vh] grid-cols-1 overflow-y-auto md:grid-cols-[340px_1fr]">
               {/* Preview pane */}
               <div className="border-b border-zinc-800 p-5 md:border-b-0 md:border-r">
                 <div className="relative mb-4 aspect-video overflow-hidden rounded-xl bg-zinc-800">

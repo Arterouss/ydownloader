@@ -29,8 +29,8 @@ export default function HomePage() {
     <div className="relative min-h-screen">
       <Sidebar />
 
-      <main className="ml-[68px] min-h-screen pb-36">
-        <div className="mx-auto max-w-6xl px-6 py-8">
+      <main className="min-h-screen pb-28 md:ml-[68px] md:pb-36">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-4 sm:py-8">
           <AnimatePresence mode="wait">
             {currentView === "dashboard" && (
               <motion.div
