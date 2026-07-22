@@ -12,8 +12,6 @@ export class GenericProvider extends BaseProvider {
   }
 
   async parseUrl(url: string): Promise<ParseResult> {
-    await this.delay(400 + Math.random() * 300);
-
     let hostname = "unknown";
     try {
       hostname = new URL(url).hostname.replace("www.", "");
@@ -21,23 +19,36 @@ export class GenericProvider extends BaseProvider {
       /* ignore */
     }
 
+    const id = `gen_${Date.now()}`;
+    const meta = await this.fetchMetadata(
+      url,
+      id,
+      `Media from ${hostname}`,
+      hostname,
+      `https://picsum.photos/seed/${hostname}/1280/720`
+    );
+
     return {
       success: true,
       data: {
-        id: `gen_${Date.now()}`,
+        id,
         url,
-        title: `Media from ${hostname}`,
-        author: hostname,
-        thumbnail: `https://picsum.photos/seed/${hostname}/1280/720`,
+        title: meta.title,
+        author: meta.author,
+        authorUrl: meta.authorUrl || `https://${hostname}`,
+        thumbnail: meta.thumbnail,
         duration: 120,
         durationLabel: "2:00",
         platform: this.slug,
+        description: meta.description || `Web media content from ${hostname}`,
+        uploadDate: new Date().toISOString().split("T")[0],
         formats: this.mockFormats(this.slug).filter(
           (f) => f.type === "video" && !f.quality?.includes("4K")
         ),
       },
     };
   }
+
 
   async getDownloadLinks(metadata: { id: string }, formatId: string) {
     return {

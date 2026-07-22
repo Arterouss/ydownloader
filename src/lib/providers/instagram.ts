@@ -8,37 +8,45 @@ export class InstagramProvider extends BaseProvider {
   readonly icon = "instagram";
 
   async parseUrl(url: string): Promise<ParseResult> {
-    await this.delay(550 + Math.random() * 350);
+    const id = `ig_${Date.now()}`;
+    const meta = await this.fetchMetadata(
+      url,
+      id,
+      "Instagram Post / Reel",
+      "@instagram_user",
+      `https://picsum.photos/seed/${id}/1080/1080`
+    );
 
-    const isCarousel = url.includes("/p/") || Math.random() > 0.5;
+    const isCarousel = url.includes("/p/") || url.includes("/carousel/") || Math.random() > 0.5;
 
     return {
       success: true,
       data: {
-        id: `ig_${Date.now()}`,
+        id,
         url,
-        title: "Sunset vibes from Bali 🌅 Travel diary day 3",
-        author: "@wanderlust.studio",
-        authorUrl: "https://instagram.com/wanderlust.studio",
-        thumbnail: `https://picsum.photos/seed/ig${Date.now()}/1080/1080`,
+        title: meta.title,
+        author: meta.author,
+        authorUrl: meta.authorUrl || "https://instagram.com",
+        thumbnail: meta.thumbnail,
         duration: isCarousel ? undefined : 45,
         durationLabel: isCarousel ? undefined : "0:45",
         platform: this.slug,
-        likeCount: 52_000,
-        uploadDate: "2026-07-18",
+        description: meta.description || "Instagram media content.",
+        likeCount: Math.floor(1000 + Math.random() * 100000),
+        uploadDate: new Date().toISOString().split("T")[0],
         isCarousel,
         carouselItems: isCarousel
           ? [
               {
-                thumbnail: `https://picsum.photos/seed/igc1/1080/1080`,
+                thumbnail: meta.thumbnail,
                 type: "image",
               },
               {
-                thumbnail: `https://picsum.photos/seed/igc2/1080/1080`,
+                thumbnail: `https://picsum.photos/seed/igc2_${id}/1080/1080`,
                 type: "image",
               },
               {
-                thumbnail: `https://picsum.photos/seed/igc3/1080/1350`,
+                thumbnail: `https://picsum.photos/seed/igc3_${id}/1080/1350`,
                 type: "video",
               },
             ]
@@ -49,6 +57,7 @@ export class InstagramProvider extends BaseProvider {
       },
     };
   }
+
 
   async getDownloadLinks(metadata: { id: string }, formatId: string) {
     return {

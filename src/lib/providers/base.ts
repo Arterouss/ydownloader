@@ -65,7 +65,110 @@ export abstract class BaseProvider {
     formatId: string
   ): Promise<{ url: string; headers?: Record<string, string> } | null>;
 
+  protected async fetchMetadata(
+    url: string,
+    fallbackId: string,
+    defaultTitle: string,
+    defaultAuthor: string,
+    defaultThumb?: string
+  ): Promise<{
+    title: string;
+    author: string;
+    authorUrl?: string;
+    thumbnail: string;
+    description?: string;
+  }> {
+    let title = defaultTitle;
+    let author = defaultAuthor;
+    let authorUrl: string | undefined;
+    let thumbnail = defaultThumb || `https://picsum.photos/seed/${fallbackId}/1280/720`;
+    let description: string | undefined;
+
+    try {
+      if (url.includes("youtube.com") || url.includes("youtu.be")) {
+        const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+        const res = await fetch(oembedUrl, { signal: AbortSignal.timeout(4000) });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.title) title = json.title;
+          if (json.author_name) author = json.author_name;
+          if (json.author_url) authorUrl = json.author_url;
+          if (json.thumbnail_url) thumbnail = json.thumbnail_url;
+          return { title, author, authorUrl, thumbnail, description };
+        }
+      } else if (url.includes("tiktok.com")) {
+        const oembedUrl = `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`;
+        const res = await fetch(oembedUrl, { signal: AbortSignal.timeout(4000) });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.title) title = json.title;
+          if (json.author_name) author = json.author_name;
+          if (json.author_url) authorUrl = json.author_url;
+          if (json.thumbnail_url) thumbnail = json.thumbnail_url;
+          return { title, author, authorUrl, thumbnail, description };
+        }
+      } else if (url.includes("vimeo.com")) {
+        const oembedUrl = `https://vimeo.com/api/oembed.json?url=${encodeURIComponent(url)}`;
+        const res = await fetch(oembedUrl, { signal: AbortSignal.timeout(4000) });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.title) title = json.title;
+          if (json.author_name) author = json.author_name;
+          if (json.author_url) authorUrl = json.author_url;
+          if (json.thumbnail_url) thumbnail = json.thumbnail_url;
+          if (json.description) description = json.description;
+          return { title, author, authorUrl, thumbnail, description };
+        }
+      }
+    } catch {
+      // Ignore oEmbed errors and proceed to HTML scraper
+    }
+
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        },
+        signal: AbortSignal.timeout(4000),
+      });
+      if (res.ok) {
+        const html = await res.text();
+        const ogTitle = html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i) ||
+          html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:title["']/i) ||
+          html.match(/<title[^>]*>([^<]+)<\/title>/i);
+        if (ogTitle?.[1]) {
+          title = ogTitle[1].replace(/\s*[-|]\s*YouTube.*$/i, "").trim() || title;
+        }
+
+        const ogImage = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i) ||
+          html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i) ||
+          html.match(/<meta[^>]*name=["']twitter:image["'][^>]*content=["']([^"']+)["']/i);
+        if (ogImage?.[1]) {
+          thumbnail = ogImage[1];
+        }
+
+        const ogDesc = html.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i) ||
+          html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:description["']/i);
+        if (ogDesc?.[1]) {
+          description = ogDesc[1];
+        }
+
+        const ogSite = html.match(/<meta[^>]*property=["']og:site_name["'][^>]*content=["']([^"']+)["']/i) ||
+          html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:site_name["']/i);
+        if (ogSite?.[1] && author === defaultAuthor) {
+          author = ogSite[1];
+        }
+      }
+    } catch {
+      // Ignore HTML scrape errors
+    }
+
+    return { title, author, authorUrl, thumbnail, description };
+  }
+
   protected mockFormats(platform: string): MediaFormat[] {
+
     const sampleVideo = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
     const sampleAudio = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
     const sampleImage = "https://picsum.photos/seed/media/1280/720.jpg";

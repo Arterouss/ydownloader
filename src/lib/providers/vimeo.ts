@@ -8,22 +8,30 @@ export class VimeoProvider extends BaseProvider {
   readonly icon = "video";
 
   async parseUrl(url: string): Promise<ParseResult> {
-    await this.delay(600 + Math.random() * 400);
+    const id = `vm_${Date.now()}`;
+    const meta = await this.fetchMetadata(
+      url,
+      id,
+      "Brand Film — Quiet Luxury Collection",
+      "Vimeo Creator",
+      `https://picsum.photos/seed/${id}/1920/1080`
+    );
 
     return {
       success: true,
       data: {
-        id: `vm_${Date.now()}`,
+        id,
         url,
-        title: "Brand Film — Quiet Luxury Collection 2026",
-        author: "Atelier Films",
-        authorUrl: "https://vimeo.com/atelierfilms",
-        thumbnail: `https://picsum.photos/seed/vimeo${Date.now()}/1920/1080`,
+        title: meta.title,
+        author: meta.author,
+        authorUrl: meta.authorUrl || "https://vimeo.com",
+        thumbnail: meta.thumbnail,
         duration: 180,
         durationLabel: "3:00",
         platform: this.slug,
-        viewCount: 45_000,
-        uploadDate: "2026-04-01",
+        description: meta.description || "Vimeo high definition video.",
+        viewCount: Math.floor(10000 + Math.random() * 200000),
+        uploadDate: new Date().toISOString().split("T")[0],
         formats: this.mockFormats(this.slug),
       },
     };

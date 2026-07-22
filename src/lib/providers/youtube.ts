@@ -8,26 +8,34 @@ export class YouTubeProvider extends BaseProvider {
   readonly icon = "youtube";
 
   async parseUrl(url: string): Promise<ParseResult> {
-    await this.delay(600 + Math.random() * 400);
+    const videoId = this.extractId(url) || `yt_${Date.now()}`;
+    const defaultThumb = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 
-    const videoId = this.extractId(url);
+    const meta = await this.fetchMetadata(
+      url,
+      videoId,
+      "YouTube Video / Short",
+      "YouTube Creator",
+      defaultThumb
+    );
+
+    const isShort = url.includes("/shorts/");
     return {
       success: true,
       data: {
-        id: videoId || `yt_${Date.now()}`,
+        id: videoId,
         url,
-        title: "Amazing Tech Review 2026 — Full Breakdown & Benchmarks",
-        author: "TechVision Channel",
-        authorUrl: "https://youtube.com/@techvision",
-        thumbnail: `https://picsum.photos/seed/${videoId || "yt"}/1280/720`,
-        duration: 1245,
-        durationLabel: "20:45",
+        title: meta.title,
+        author: meta.author,
+        authorUrl: meta.authorUrl || "https://youtube.com",
+        thumbnail: meta.thumbnail || defaultThumb,
+        duration: isShort ? 45 : 1245,
+        durationLabel: isShort ? "0:45" : "20:45",
         platform: this.slug,
-        description:
-          "Deep dive into the latest hardware and software innovations of 2026.",
-        viewCount: 1_240_000,
-        likeCount: 89_000,
-        uploadDate: "2026-06-15",
+        description: meta.description || "YouTube media content.",
+        viewCount: Math.floor(10000 + Math.random() * 2000000),
+        likeCount: Math.floor(1000 + Math.random() * 150000),
+        uploadDate: new Date().toISOString().split("T")[0],
         formats: this.mockFormats(this.slug),
       },
     };
@@ -42,10 +50,22 @@ export class YouTubeProvider extends BaseProvider {
   private extractId(url: string): string | null {
     try {
       const u = new URL(url);
-      if (u.hostname.includes("youtu.be")) return u.pathname.slice(1);
+      if (u.hostname.includes("youtu.be")) {
+        return u.pathname.slice(1).split("/")[0]?.split("?")[0];
+      }
+      if (u.pathname.startsWith("/shorts/")) {
+        return u.pathname.split("/")[2]?.split("?")[0] || u.pathname.split("/")[1]?.replace("shorts", "");
+      }
+      if (u.pathname.startsWith("/embed/")) {
+        return u.pathname.split("/")[2]?.split("?")[0];
+      }
+      if (u.pathname.startsWith("/live/")) {
+        return u.pathname.split("/")[2]?.split("?")[0];
+      }
       return u.searchParams.get("v");
     } catch {
       return null;
     }
   }
 }
+

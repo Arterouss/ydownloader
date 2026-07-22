@@ -8,27 +8,36 @@ export class BilibiliProvider extends BaseProvider {
   readonly icon = "tv";
 
   async parseUrl(url: string): Promise<ParseResult> {
-    await this.delay(700 + Math.random() * 400);
+    const id = `bl_${Date.now()}`;
+    const meta = await this.fetchMetadata(
+      url,
+      id,
+      "【4K】赛博朋克城市漫游 — Cyberpunk Night Drive",
+      "夜行者NightWalker",
+      `https://picsum.photos/seed/${id}/1280/720`
+    );
 
     return {
       success: true,
       data: {
-        id: `bl_${Date.now()}`,
+        id,
         url,
-        title: "【4K】赛博朋克城市漫游 — Cyberpunk Night Drive",
-        author: "夜行者NightWalker",
-        authorUrl: "https://space.bilibili.com/123456",
-        thumbnail: `https://picsum.photos/seed/bili${Date.now()}/1280/720`,
+        title: meta.title,
+        author: meta.author,
+        authorUrl: meta.authorUrl || "https://bilibili.com",
+        thumbnail: meta.thumbnail,
         duration: 892,
         durationLabel: "14:52",
         platform: this.slug,
-        viewCount: 890_000,
-        likeCount: 67_000,
-        uploadDate: "2026-05-22",
+        description: meta.description || "Bilibili high quality video.",
+        viewCount: Math.floor(50000 + Math.random() * 1000000),
+        likeCount: Math.floor(5000 + Math.random() * 100000),
+        uploadDate: new Date().toISOString().split("T")[0],
         formats: this.mockFormats(this.slug),
       },
     };
   }
+
 
   async getDownloadLinks(metadata: { id: string }, formatId: string) {
     return {

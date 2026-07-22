@@ -8,21 +8,30 @@ export class DouyinProvider extends BaseProvider {
   readonly icon = "music-2";
 
   async parseUrl(url: string): Promise<ParseResult> {
-    await this.delay(500 + Math.random() * 300);
+    const id = `dy_${Date.now()}`;
+    const meta = await this.fetchMetadata(
+      url,
+      id,
+      "街头舞蹈挑战赛精彩瞬间 💃",
+      "@streetdance_cn",
+      `https://picsum.photos/seed/${id}/720/1280`
+    );
 
     return {
       success: true,
       data: {
-        id: `dy_${Date.now()}`,
+        id,
         url,
-        title: "街头舞蹈挑战赛决赛精彩瞬间 💃",
-        author: "@streetdance_cn",
-        thumbnail: `https://picsum.photos/seed/dy${Date.now()}/720/1280`,
+        title: meta.title,
+        author: meta.author,
+        authorUrl: meta.authorUrl || "https://douyin.com",
+        thumbnail: meta.thumbnail,
         duration: 35,
         durationLabel: "0:35",
         platform: this.slug,
-        viewCount: 5_600_000,
-        likeCount: 890_000,
+        description: meta.description || "Douyin short video.",
+        viewCount: Math.floor(100000 + Math.random() * 5000000),
+        likeCount: Math.floor(10000 + Math.random() * 800000),
         formats: this.mockFormats(this.slug).filter(
           (f) => !f.quality?.includes("4K")
         ),
