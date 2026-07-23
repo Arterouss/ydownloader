@@ -6,9 +6,10 @@ import type { MediaFormat, MediaMetadata } from "@/lib/providers/base";
 export const maxDuration = 30;
 
 export async function POST(req: NextRequest) {
+  let url = "";
   try {
     const body = await req.json();
-    const url = typeof body?.url === "string" ? body.url.trim() : "";
+    url = typeof body?.url === "string" ? body.url.trim() : "";
 
     if (!url) {
       return NextResponse.json(
