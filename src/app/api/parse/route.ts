@@ -167,6 +167,9 @@ export async function POST(req: NextRequest) {
       userError = "This video is private and cannot be accessed.";
     } else if (message.includes("timeout") || message.includes("TIMEOUT")) {
       userError = "Request timed out. Please try again.";
+    } else {
+      // Append the actual error to help debugging on Render (e.g. YouTube IP block or path issues)
+      userError = `Failed to analyze this URL. Details: ${message.split('\n')[0].slice(0, 150)}`;
     }
 
     return NextResponse.json(

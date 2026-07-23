@@ -42,7 +42,7 @@ export interface YtDlpInfo {
  */
 export async function getVideoInfo(url: string): Promise<YtDlpInfo> {
   const safeUrl = url.replace(/"/g, '\\"');
-  const cmd = `yt-dlp --js-runtimes node --dump-single-json --no-download --no-playlist "${safeUrl}"`;
+  const cmd = `python3 -m yt_dlp --js-runtimes node --dump-single-json --no-download --no-playlist "${safeUrl}"`;
 
   const { stdout } = await execAsync(cmd, {
     timeout: 30000,
@@ -62,7 +62,7 @@ export async function getFormatUrl(
   formatId: string
 ): Promise<string> {
   const safeUrl = url.replace(/"/g, '\\"');
-  const cmd = `yt-dlp --js-runtimes node -f "${formatId}" --get-url --no-playlist "${safeUrl}"`;
+  const cmd = `python3 -m yt_dlp --js-runtimes node -f "${formatId}" --get-url --no-playlist "${safeUrl}"`;
 
   const { stdout } = await execAsync(cmd, {
     timeout: 30000,
@@ -85,7 +85,7 @@ export async function downloadToFile(
 ): Promise<string> {
   const safeUrl = url.replace(/"/g, '\\"');
   const outputPath = `${outputDir}/${fileName}`;
-  const cmd = `yt-dlp --js-runtimes node -f "${formatId}" --no-playlist --merge-output-format mp4 -o "${outputPath}" "${safeUrl}"`;
+  const cmd = `python3 -m yt_dlp --js-runtimes node -f "${formatId}" --no-playlist --merge-output-format mp4 -o "${outputPath}" "${safeUrl}"`;
 
   await execAsync(cmd, {
     timeout: 120000,
