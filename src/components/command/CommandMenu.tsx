@@ -70,9 +70,11 @@ export function CommandMenu() {
         });
         const json = await res.json();
         if (json.success && json.data) {
-          setActiveMetadata(json.data as MediaMetadata);
+          const meta = json.data;
+          setActiveMetadata(meta, json.isMock);
           setInspectorOpen(true);
-          toast.success("Media found");
+          setCommandOpen(false);
+          toast.success(`Found: ${meta.title.slice(0, 40)}…`);
         } else {
           toast.error(json.error || "Parse failed");
         }

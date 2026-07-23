@@ -42,9 +42,10 @@ interface DownloadState {
   isCommandOpen: boolean;
   isParsing: boolean;
   parseError: string | null;
+  isMockMode: boolean;
   currentView: "dashboard" | "history" | "collections" | "favorites" | "settings";
 
-  setActiveMetadata: (meta: MediaMetadata | null) => void;
+  setActiveMetadata: (meta: MediaMetadata | null, isMock?: boolean) => void;
   setInspectorOpen: (open: boolean) => void;
   setCommandOpen: (open: boolean) => void;
   setParsing: (v: boolean) => void;
@@ -127,9 +128,10 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
   isCommandOpen: false,
   isParsing: false,
   parseError: null,
+  isMockMode: false,
   currentView: "dashboard",
 
-  setActiveMetadata: (meta) => set({ activeMetadata: meta }),
+  setActiveMetadata: (meta, isMock = false) => set({ activeMetadata: meta, isMockMode: isMock }),
   setInspectorOpen: (open) => set({ isInspectorOpen: open }),
   setCommandOpen: (open) => set({ isCommandOpen: open }),
   setParsing: (v) => set({ isParsing: v }),

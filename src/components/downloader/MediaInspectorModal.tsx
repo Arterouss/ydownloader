@@ -29,6 +29,7 @@ export function MediaInspectorModal() {
   const {
     activeMetadata,
     isInspectorOpen,
+    isMockMode,
     setInspectorOpen,
     setActiveMetadata,
     addToQueue,
@@ -119,6 +120,14 @@ export function MediaInspectorModal() {
             <div className="grid max-h-[85vh] grid-cols-1 overflow-y-auto md:grid-cols-[340px_1fr]">
               {/* Preview pane */}
               <div className="border-b border-zinc-800 p-5 md:border-b-0 md:border-r">
+                
+                {isMockMode && (
+                  <div className="mb-4 rounded-lg bg-orange-500/10 border border-orange-500/20 p-3 text-sm text-orange-400">
+                    <strong className="block mb-1">⚠️ Demo Mode (IP Blocked)</strong>
+                    YouTube blocks cloud datacenter IPs from downloading videos without login cookies. A sample video is provided here for demonstration purposes.
+                  </div>
+                )}
+
                 <div className="relative mb-4 aspect-video overflow-hidden rounded-xl bg-zinc-800">
                   <Image
                     src={meta.thumbnail}

@@ -121,7 +121,7 @@ export function UrlInputCanvas() {
       }
 
       const meta = json.data as MediaMetadata;
-      setActiveMetadata(meta);
+      setActiveMetadata(meta, json.isMock);
       setInspectorOpen(true);
       toast.success(`Found: ${meta.title.slice(0, 40)}…`);
     } catch {
