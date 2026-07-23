@@ -62,15 +62,25 @@ export function isValidUrl(str: string): boolean {
 export async function triggerFileDownload(title: string, ext: string, contentUrl?: string) {
   if (typeof window === "undefined") return;
 
-  const safeTitle = (title || "media").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 50);
+  const safeTitle = (title || "media").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80);
   const fileName = `${safeTitle}.${ext || "mp4"}`;
 
-  // Route download through same-origin proxy to eliminate CORS & XML AccessDenied errors
-  const proxyUrl = `/api/sample?ext=${encodeURIComponent(ext || "mp4")}&title=${encodeURIComponent(safeTitle)}&url=${encodeURIComponent(contentUrl || "")}`;
+  // Route download through same-origin proxy to eliminate CORS errors.
+  // Pass the direct CDN URL (from yt-dlp) as `directUrl` parameter.
+  const params = new URLSearchParams({
+    ext: ext || "mp4",
+    title: safeTitle,
+  });
+
+  if (contentUrl && contentUrl.startsWith("http") && !contentUrl.includes("example.com")) {
+    params.set("directUrl", contentUrl);
+  }
+
+  const proxyUrl = `/api/sample?${params.toString()}`;
 
   try {
     const res = await fetch(proxyUrl);
-    if (!res.ok) throw new Error("Fetch failed");
+    if (!res.ok) throw new Error(`Proxy returned ${res.status}`);
     const blob = await res.blob();
     const blobUrl = URL.createObjectURL(blob);
 
@@ -83,6 +93,7 @@ export async function triggerFileDownload(title: string, ext: string, contentUrl
     setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
   } catch (err) {
     console.warn("Proxy download fallback:", err);
+    // Fallback: direct link to proxy endpoint (browser will handle download)
     const a = document.createElement("a");
     a.href = proxyUrl;
     a.download = fileName;
@@ -91,6 +102,4 @@ export async function triggerFileDownload(title: string, ext: string, contentUrl
     document.body.removeChild(a);
   }
 }
-
-
 

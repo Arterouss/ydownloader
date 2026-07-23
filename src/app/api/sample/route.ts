@@ -1,92 +1,113 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getFormatUrl } from "@/lib/ytdlp";
+
+export const maxDuration = 60;
 
 /**
- * Server-side media proxy and sample endpoint.
- * Serves real downloadable media files (video/audio/image) with proper attachment headers
- * to avoid browser CORS issues or XML AccessDenied errors.
+ * Proxy endpoint that streams real video/audio content to the browser.
+ *
+ * Usage:
+ *   /api/sample?url=<sourceUrl>&format=<formatId>&title=<fileName>&ext=<extension>
+ *
+ * - If `directUrl` is provided (a real CDN stream URL), it proxies that directly.
+ * - If `url` + `format` are provided, it uses yt-dlp to resolve the direct URL first.
  */
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const ext = (searchParams.get("ext") || "mp4").toLowerCase();
     const title = searchParams.get("title") || "media_download";
-    const targetUrl = searchParams.get("url");
+    const directUrl = searchParams.get("directUrl");
+    const sourceUrl = searchParams.get("url");
+    const formatId = searchParams.get("format");
 
-    const safeTitle = title.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 50) || "video";
+    const safeTitle =
+      title.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80) || "video";
     const fileName = `${safeTitle}.${ext}`;
 
-    // Reliable public media URLs accessible from Node.js
-    const reliableVideo = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
-    const reliableAudio = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
-    const reliableImage = "https://picsum.photos/seed/media/1280/720.jpg";
+    let streamUrl = "";
 
-    let urlToFetch = reliableVideo;
-    if (ext === "mp3" || ext === "m4a") {
-      urlToFetch = reliableAudio;
-    } else if (ext === "jpg" || ext === "png" || ext === "jpeg") {
-      urlToFetch = reliableImage;
-    }
-
+    // Priority 1: Direct CDN URL provided by the client
     if (
-      targetUrl &&
-      targetUrl.startsWith("http") &&
-      !targetUrl.includes("commondatastorage.googleapis.com") &&
-      !targetUrl.includes("example.com")
+      directUrl &&
+      directUrl.startsWith("http") &&
+      !directUrl.includes("example.com")
     ) {
-      urlToFetch = targetUrl;
+      streamUrl = directUrl;
     }
-
-    try {
-      const res = await fetch(urlToFetch, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        },
-        signal: AbortSignal.timeout(10000),
-      });
-
-      if (res.ok) {
-        const arrayBuffer = await res.arrayBuffer();
-        let contentType = res.headers.get("content-type");
-        if (!contentType || contentType.includes("text/html") || contentType.includes("application/xml")) {
-          contentType = ext === "mp3" ? "audio/mpeg" : ext === "jpg" ? "image/jpeg" : "video/mp4";
-        }
-
-        return new NextResponse(arrayBuffer, {
-          status: 200,
-          headers: {
-            "Content-Type": contentType,
-            "Content-Disposition": `attachment; filename="${fileName}"`,
-            "Cache-Control": "no-cache",
-          },
-        });
+    // Priority 2: Resolve via yt-dlp
+    else if (sourceUrl && formatId) {
+      try {
+        streamUrl = await getFormatUrl(sourceUrl, formatId);
+      } catch (e) {
+        console.error("[api/sample] yt-dlp resolve failed:", e);
       }
-    } catch (fetchErr) {
-      console.warn("[api/sample] Primary fetch failed, attempting fallback URL:", fetchErr);
     }
 
-    // Fallback reliable media if primary fetch failed
-    const fallbackUrl =
-      ext === "mp3"
-        ? "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
-        : ext === "jpg"
-          ? "https://picsum.photos/1280/720"
-          : "https://www.w3schools.com/html/mov_bbb.mp4";
+    if (!streamUrl) {
+      return NextResponse.json(
+        { success: false, error: "No stream URL available" },
+        { status: 400 }
+      );
+    }
 
-    const fallbackRes = await fetch(fallbackUrl);
-    const buffer = await fallbackRes.arrayBuffer();
-
-    return new NextResponse(buffer, {
-      status: 200,
+    // Stream the content from the CDN to the client
+    const res = await fetch(streamUrl, {
       headers: {
-        "Content-Type": ext === "mp3" ? "audio/mpeg" : ext === "jpg" ? "image/jpeg" : "video/mp4",
-        "Content-Disposition": `attachment; filename="${fileName}"`,
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        Referer: sourceUrl || "",
       },
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!res.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Upstream returned ${res.status}`,
+        },
+        { status: 502 }
+      );
+    }
+
+    // Determine content type
+    let contentType = res.headers.get("content-type") || "video/mp4";
+    if (
+      contentType.includes("text/html") ||
+      contentType.includes("application/xml")
+    ) {
+      contentType =
+        ext === "mp3" || ext === "m4a"
+          ? "audio/mpeg"
+          : ext === "webm"
+            ? "video/webm"
+            : ext === "jpg" || ext === "jpeg" || ext === "png"
+              ? "image/jpeg"
+              : "video/mp4";
+    }
+
+    const contentLength = res.headers.get("content-length");
+
+    const responseHeaders: Record<string, string> = {
+      "Content-Type": contentType,
+      "Content-Disposition": `attachment; filename="${fileName}"`,
+      "Cache-Control": "no-cache",
+    };
+
+    if (contentLength) {
+      responseHeaders["Content-Length"] = contentLength;
+    }
+
+    // Stream the body through
+    return new NextResponse(res.body, {
+      status: 200,
+      headers: responseHeaders,
     });
   } catch (err) {
-    console.error("[api/sample] Critical error serving media:", err);
+    console.error("[api/sample] Error:", err);
     return NextResponse.json(
-      { success: false, error: "Failed to serve media" },
+      { success: false, error: "Failed to stream media" },
       { status: 500 }
     );
   }
