@@ -165,7 +165,11 @@ export async function POST(req: NextRequest) {
       const fallbackResult = await fallbackParse(fallbackUrl);
       
       if (fallbackResult.success) {
-        return NextResponse.json({ success: true, data: fallbackResult.data });
+        return NextResponse.json({ 
+          success: true, 
+          isMock: true, 
+          data: fallbackResult.data 
+        });
       }
     } catch (fallbackErr) {
       console.error("Fallback also failed:", fallbackErr);
