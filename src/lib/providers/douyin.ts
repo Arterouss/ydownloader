@@ -1,13 +1,30 @@
 import { BaseProvider, type ParseResult } from "./base";
 
+async function unshorten(url: string): Promise<string> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
+      },
+      redirect: "follow",
+      signal: AbortSignal.timeout(6000),
+    });
+    return res.url || url;
+  } catch {
+    return url;
+  }
+}
+
 export class DouyinProvider extends BaseProvider {
   readonly name = "Douyin";
   readonly slug = "douyin";
-  readonly domains = ["douyin.com", "iesdouyin.com"];
+  readonly domains = ["douyin.com", "iesdouyin.com", "v.douyin.com"];
   readonly color = "#000000";
   readonly icon = "music-2";
 
   async parseUrl(url: string): Promise<ParseResult> {
+    const canonicalUrl = await unshorten(url);
     const id = `dy_${Date.now()}`;
     let realTitle = "Douyin Short Video";
     let realAuthor = "@douyin_creator";
@@ -15,7 +32,7 @@ export class DouyinProvider extends BaseProvider {
     let realVideoUrl: string | undefined;
 
     try {
-      const res = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`, {
+      const res = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(canonicalUrl)}`, {
         signal: AbortSignal.timeout(6000),
       });
       if (res.ok) {
@@ -30,31 +47,18 @@ export class DouyinProvider extends BaseProvider {
         }
       }
     } catch {
-      // Fallback to OpenGraph
+      // Fallback
     }
 
-    if (!realVideoUrl || realTitle === "Douyin Short Video") {
-      const meta = await this.fetchMetadata(
-        url,
-        id,
-        "街头舞蹈挑战赛精彩瞬间 💃",
-        "@streetdance_cn",
-        `https://picsum.photos/seed/${id}/720/1280`
-      );
-      if (meta.title) realTitle = meta.title;
-      if (meta.author) realAuthor = meta.author;
-      if (meta.thumbnail) realThumb = meta.thumbnail;
-    }
-
-    const formats = this.mockFormats(this.slug)
-      .filter((f) => !f.quality?.includes("4K"))
-      .map((f) => (realVideoUrl && f.type === "video" ? { ...f, url: realVideoUrl, hasAudio: true } : f));
+    const formats = this.mockFormats(this.slug).map((f) =>
+      realVideoUrl && f.type === "video" ? { ...f, url: realVideoUrl, hasAudio: true } : f
+    );
 
     return {
       success: true,
       data: {
         id,
-        url,
+        url: canonicalUrl,
         title: realTitle,
         author: realAuthor,
         authorUrl: "https://douyin.com",
@@ -63,8 +67,6 @@ export class DouyinProvider extends BaseProvider {
         durationLabel: "0:35",
         platform: this.slug,
         description: realTitle,
-        viewCount: Math.floor(100000 + Math.random() * 5000000),
-        likeCount: Math.floor(10000 + Math.random() * 800000),
         formats,
       },
     };

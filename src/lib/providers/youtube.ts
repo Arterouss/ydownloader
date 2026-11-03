@@ -11,32 +11,57 @@ export class YouTubeProvider extends BaseProvider {
     const videoId = this.extractId(url) || `yt_${Date.now()}`;
     const defaultThumb = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 
-    const meta = await this.fetchMetadata(
-      url,
-      videoId,
-      "YouTube Video / Short",
-      "YouTube Creator",
-      defaultThumb
-    );
+    let realTitle = "YouTube Video";
+    let realAuthor = "YouTube Creator";
+    let realThumb = defaultThumb;
+    let realMp4: string | undefined;
+    let realMp3: string | undefined;
 
-    const isShort = url.includes("/shorts/");
+    try {
+      const btch = await import("btch-downloader");
+      const yt = await btch.youtube(url);
+      if (yt.status && (yt.mp4 || yt.mp3)) {
+        if (yt.title) realTitle = yt.title;
+        if (yt.author) realAuthor = yt.author;
+        if (yt.thumbnail) realThumb = yt.thumbnail;
+        if (yt.mp4) realMp4 = yt.mp4;
+        if (yt.mp3) realMp3 = yt.mp3;
+      }
+    } catch {
+      // Fallback
+    }
+
+    if (!realMp4) {
+      const meta = await this.fetchMetadata(url, videoId, realTitle, realAuthor, defaultThumb);
+      if (meta.title) realTitle = meta.title;
+      if (meta.author) realAuthor = meta.author;
+      if (meta.thumbnail) realThumb = meta.thumbnail;
+    }
+
+    const formats = this.mockFormats(this.slug).map((f) => {
+      if (realMp4 && f.type === "video") {
+        return { ...f, url: realMp4, hasAudio: true };
+      }
+      if (realMp3 && f.type === "audio") {
+        return { ...f, url: realMp3, hasAudio: true };
+      }
+      return f;
+    });
+
     return {
       success: true,
       data: {
         id: videoId,
         url,
-        title: meta.title,
-        author: meta.author,
-        authorUrl: meta.authorUrl || "https://youtube.com",
-        thumbnail: meta.thumbnail || defaultThumb,
-        duration: isShort ? 45 : 1245,
-        durationLabel: isShort ? "0:45" : "20:45",
+        title: realTitle,
+        author: realAuthor,
+        authorUrl: `https://youtube.com`,
+        thumbnail: realThumb,
+        duration: 180,
+        durationLabel: "3:00",
         platform: this.slug,
-        description: meta.description || "YouTube media content.",
-        viewCount: Math.floor(10000 + Math.random() * 2000000),
-        likeCount: Math.floor(1000 + Math.random() * 150000),
-        uploadDate: new Date().toISOString().split("T")[0],
-        formats: this.mockFormats(this.slug),
+        description: realTitle,
+        formats,
       },
     };
   }
@@ -59,13 +84,9 @@ export class YouTubeProvider extends BaseProvider {
       if (u.pathname.startsWith("/embed/")) {
         return u.pathname.split("/")[2]?.split("?")[0];
       }
-      if (u.pathname.startsWith("/live/")) {
-        return u.pathname.split("/")[2]?.split("?")[0];
-      }
       return u.searchParams.get("v");
     } catch {
       return null;
     }
   }
 }
-

@@ -20,49 +20,66 @@ export class FacebookProvider extends BaseProvider {
     let realThumb = `https://picsum.photos/seed/${id}/1280/720`;
     let realVideoUrl: string | undefined;
 
+    // 1. Try SnapSave
     try {
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        },
-        signal: AbortSignal.timeout(6000),
-      });
-
-      if (res.ok) {
-        const html = await res.text();
-        const hdMatch =
-          html.match(/"browser_native_hd_url":"([^"]+)"/) ||
-          html.match(/hd_src:"([^"]+)"/) ||
-          html.match(/"playable_url_quality_hd":"([^"]+)"/);
-        const sdMatch =
-          html.match(/"browser_native_sd_url":"([^"]+)"/) ||
-          html.match(/sd_src:"([^"]+)"/) ||
-          html.match(/"playable_url":"([^"]+)"/);
-
-        const rawUrl = (hdMatch?.[1] || sdMatch?.[1] || "")
-          .replace(/\\u0026/g, "&")
-          .replace(/\\u0025/g, "%")
-          .replace(/\\\//g, "/");
-
-        if (rawUrl.startsWith("http")) {
-          realVideoUrl = rawUrl;
-        }
-
-        const titleMatch =
-          html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i) ||
-          html.match(/<title[^>]*>([^<]+)<\/title>/i);
-        if (titleMatch?.[1]) {
-          realTitle = titleMatch[1].replace(/\s*\|\s*Facebook.*$/i, "").trim() || realTitle;
-        }
-
-        const thumbMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i);
-        if (thumbMatch?.[1]) {
-          realThumb = thumbMatch[1].replace(/&amp;/g, "&");
-        }
+      const { snapsave } = await import("snapsave-media-downloader");
+      const snap = await snapsave(url);
+      if (snap.success && snap.data?.media?.length) {
+        const best = snap.data.media.find((m) => m.resolution?.includes("HD")) || snap.data.media[0];
+        realVideoUrl = best.url;
+        if (snap.data.preview) realThumb = snap.data.preview;
+        if (snap.data.description) realTitle = snap.data.description;
       }
     } catch {
       // Fallback
+    }
+
+    // 2. Try HTML scraping
+    if (!realVideoUrl) {
+      try {
+        const res = await fetch(url, {
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+          },
+          signal: AbortSignal.timeout(6000),
+        });
+
+        if (res.ok) {
+          const html = await res.text();
+          const hdMatch =
+            html.match(/"browser_native_hd_url":"([^"]+)"/) ||
+            html.match(/hd_src:"([^"]+)"/) ||
+            html.match(/"playable_url_quality_hd":"([^"]+)"/);
+          const sdMatch =
+            html.match(/"browser_native_sd_url":"([^"]+)"/) ||
+            html.match(/sd_src:"([^"]+)"/) ||
+            html.match(/"playable_url":"([^"]+)"/);
+
+          const rawUrl = (hdMatch?.[1] || sdMatch?.[1] || "")
+            .replace(/\\u0026/g, "&")
+            .replace(/\\u0025/g, "%")
+            .replace(/\\\//g, "/");
+
+          if (rawUrl.startsWith("http")) {
+            realVideoUrl = rawUrl;
+          }
+
+          const titleMatch =
+            html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i) ||
+            html.match(/<title[^>]*>([^<]+)<\/title>/i);
+          if (titleMatch?.[1]) {
+            realTitle = titleMatch[1].replace(/\s*\|\s*Facebook.*$/i, "").trim() || realTitle;
+          }
+
+          const thumbMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i);
+          if (thumbMatch?.[1]) {
+            realThumb = thumbMatch[1].replace(/&amp;/g, "&");
+          }
+        }
+      } catch {
+        // Fallback
+      }
     }
 
     const formats = this.mockFormats(this.slug).map((f) =>
@@ -82,9 +99,6 @@ export class FacebookProvider extends BaseProvider {
         durationLabel: "0:45",
         platform: this.slug,
         description: realTitle,
-        viewCount: Math.floor(25000 + Math.random() * 800000),
-        likeCount: Math.floor(1200 + Math.random() * 45000),
-        uploadDate: new Date().toISOString().split("T")[0],
         formats,
       },
     };

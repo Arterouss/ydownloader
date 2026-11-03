@@ -77,9 +77,10 @@ export function isValidUrl(str: string): boolean {
 export async function triggerFileDownload(title: string, ext: string, contentUrl?: string) {
   if (typeof window === "undefined") return;
 
-  let targetUrl = contentUrl;
-  if (targetUrl && targetUrl.includes("flower.mp4")) {
-    targetUrl = "https://www.w3schools.com/html/mov_bbb.mp4";
+  const targetUrl = contentUrl?.trim();
+  if (!targetUrl || targetUrl.includes("example.com") || targetUrl.includes("mov_bbb.mp4") || targetUrl.includes("flower.mp4")) {
+    alert("Maaf, link video asli tidak dapat diunduh langsung untuk media ini (platform membatasi akses tanpa login). Tidak ada video palsu yang diunduh.");
+    return;
   }
 
   const safeTitle = (title || "media").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80);
@@ -89,14 +90,11 @@ export async function triggerFileDownload(title: string, ext: string, contentUrl
   const params = new URLSearchParams({
     ext: ext || "mp4",
     title: safeTitle,
+    directUrl: targetUrl,
   });
 
-  if (targetUrl && targetUrl.startsWith("http") && !targetUrl.includes("example.com")) {
-    params.set("directUrl", targetUrl);
-  }
-
   const proxyUrl = `${apiBase}/api/sample?${params.toString()}`;
-  const effectiveDownloadUrl = targetUrl && !targetUrl.includes("example.com") ? targetUrl : proxyUrl;
+  const effectiveDownloadUrl = targetUrl;
 
   // 1. Check if running inside Android APK with Native Download Manager
   const androidDownloader = (window as any).AndroidDownloader;

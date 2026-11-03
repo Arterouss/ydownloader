@@ -81,6 +81,10 @@ export function MediaInspectorModal() {
       toast.error("Select a format first");
       return;
     }
+    if (!selectedFormat.url) {
+      toast.error("Stream video langsung tidak tersedia (platform membatasi akses tanpa login).");
+      return;
+    }
     addToQueue(activeMetadata, selectedFormat);
     toast.success(`Queued: ${selectedFormat.label} · ${selectedFormat.ext.toUpperCase()}`);
     close();
@@ -133,9 +137,9 @@ export function MediaInspectorModal() {
               {/* Preview pane */}
               <div className="border-b border-zinc-800 p-5 md:border-b-0 md:border-r">
                 {isMockMode && (
-                  <div className="mb-4 rounded-lg bg-orange-500/10 border border-orange-500/20 p-3 text-sm text-orange-400">
-                    <strong className="block mb-1">⚠️ Demo Mode (IP Blocked)</strong>
-                    YouTube blocks cloud datacenter IPs from downloading videos without login cookies. A sample video is provided here for demonstration purposes.
+                  <div className="mb-4 rounded-lg bg-amber-500/10 border border-amber-500/20 p-3 text-sm text-amber-400">
+                    <strong className="block mb-1">⚠️ Pembatasan Akses Platform</strong>
+                    Platform sumber membatasi download langsung tanpa login. Pratinjau ditampilkan, namun link unduhan stream tidak tersedia.
                   </div>
                 )}
 
@@ -319,11 +323,11 @@ export function MediaInspectorModal() {
                   </div>
                   <Button
                     onClick={handleDownload}
-                    disabled={!selectedFormat}
-                    className="gap-2 bg-indigo-500 shadow-lg shadow-indigo-500/25 hover:bg-indigo-400"
+                    disabled={!selectedFormat || !selectedFormat.url}
+                    className="gap-2 bg-indigo-500 shadow-lg shadow-indigo-500/25 hover:bg-indigo-400 disabled:opacity-50"
                   >
                     <Download className="h-4 w-4" />
-                    Download
+                    {selectedFormat?.url ? "Download" : "Stream Tidak Tersedia"}
                   </Button>
                 </div>
               </div>
