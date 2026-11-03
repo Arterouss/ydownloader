@@ -3,6 +3,7 @@ package com.ydownloader.app;
 import android.app.DownloadManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
@@ -10,21 +11,31 @@ import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 import android.widget.Toast;
 import com.getcapacitor.BridgeActivity;
+import org.json.JSONObject;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class MainActivity extends BridgeActivity {
+    // Regex strictly matching valid HTTP/HTTPS URLs
     private static final Pattern URL_PATTERN = Pattern.compile("https?://[a-zA-Z0-9.-]+(?:/[^\\s]*)?");
+    private static final int MAX_URL_LENGTH = 2048;
     private String pendingSharedUrl = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Register Native Downloader JavaScript Interface
         try {
             WebView webView = getBridge().getWebView();
-            webView.addJavascriptInterface(new DownloaderBridge(this), "AndroidDownloader");
+            if (webView != null) {
+                // Disable remote debugging if not in debuggable build to prevent tamper
+                boolean isDebuggable = (0 != (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE));
+                WebView.setWebContentsDebuggingEnabled(isDebuggable);
+
+                // Register secure native download bridge
+                webView.addJavascriptInterface(new SecureDownloaderBridge(this), "AndroidDownloader");
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -52,47 +63,60 @@ public class MainActivity extends BridgeActivity {
         String action = intent.getAction();
         String type = intent.getType();
 
-        if (Intent.ACTION_SEND.equals(action) && type != null) {
-            String sharedText = intent.getStringExtra(Intent.EXTRA_TEXT);
-            if (sharedText != null) {
-                String extracted = extractUrl(sharedText);
-                if (extracted != null) {
-                    pendingSharedUrl = extracted;
-                    sendUrlToWebView(extracted);
+        try {
+            if (Intent.ACTION_SEND.equals(action) && type != null) {
+                String sharedText = intent.getStringExtra(Intent.EXTRA_TEXT);
+                if (sharedText != null && sharedText.length() < 8192) {
+                    String extracted = extractUrl(sharedText);
+                    if (extracted != null) {
+                        pendingSharedUrl = extracted;
+                        sendUrlToWebView(extracted);
+                    }
+                }
+            } else if (Intent.ACTION_VIEW.equals(action)) {
+                Uri data = intent.getData();
+                if (data != null) {
+                    String urlStr = data.toString();
+                    if (urlStr.startsWith("http://") || urlStr.startsWith("https://")) {
+                        pendingSharedUrl = urlStr;
+                        sendUrlToWebView(urlStr);
+                    }
                 }
             }
-        } else if (Intent.ACTION_VIEW.equals(action)) {
-            Uri data = intent.getData();
-            if (data != null) {
-                pendingSharedUrl = data.toString();
-                sendUrlToWebView(data.toString());
-            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
     private String extractUrl(String text) {
+        if (text == null) return null;
         Matcher matcher = URL_PATTERN.matcher(text);
         if (matcher.find()) {
-            return matcher.group(0);
+            String found = matcher.group(0);
+            if (found != null && found.length() <= MAX_URL_LENGTH) {
+                return found;
+            }
         }
-        return text.trim();
+        return null;
     }
 
     private void sendUrlToWebView(String url) {
-        if (url == null || url.isEmpty()) return;
-        final String safeUrl = url.replace("'", "\\'");
+        if (url == null || url.trim().isEmpty() || url.length() > MAX_URL_LENGTH) return;
+
+        // Security: Use JSONObject.quote to mathematically prevent any JavaScript string escape / XSS injection
+        final String jsonQuotedUrl = JSONObject.quote(url.trim());
 
         runOnUiThread(() -> {
             try {
                 if (getBridge() != null && getBridge().getWebView() != null) {
                     WebView wv = getBridge().getWebView();
                     String script = String.format(
-                        "window.__INITIAL_SHARED_URL__ = '%s';" +
-                        "window.dispatchEvent(new CustomEvent('appSharedUrl', { detail: { url: '%s' } }));",
-                        safeUrl, safeUrl
+                        "window.__INITIAL_SHARED_URL__ = %s;" +
+                        "window.dispatchEvent(new CustomEvent('appSharedUrl', { detail: { url: %s } }));",
+                        jsonQuotedUrl, jsonQuotedUrl
                     );
                     wv.evaluateJavascript(script, null);
-                    Toast.makeText(MainActivity.this, "Link detected from social media!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, "Shared link verified and loaded!", Toast.LENGTH_SHORT).show();
                     pendingSharedUrl = null;
                 }
             } catch (Exception e) {
@@ -101,30 +125,76 @@ public class MainActivity extends BridgeActivity {
         });
     }
 
-    public static class DownloaderBridge {
+    public static class SecureDownloaderBridge {
         private final Context context;
 
-        public DownloaderBridge(Context context) {
+        public SecureDownloaderBridge(Context context) {
             this.context = context;
         }
 
         @JavascriptInterface
         public void downloadFile(String fileUrl, String fileName, String title) {
             try {
-                if (fileUrl == null || fileUrl.isEmpty()) return;
+                // 1. Validate File URL Scheme (strictly HTTPS or HTTP only)
+                if (fileUrl == null || fileUrl.trim().isEmpty()) return;
+                String trimmedUrl = fileUrl.trim();
+                if (!trimmedUrl.startsWith("https://") && !trimmedUrl.startsWith("http://")) {
+                    Toast.makeText(context, "Blocked: Insecure or invalid protocol.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
 
-                DownloadManager.Request request = new DownloadManager.Request(Uri.parse(fileUrl));
-                request.setTitle(title != null && !title.isEmpty() ? title : "Downloading media");
-                request.setDescription("Saving " + fileName);
+                // 2. Prevent Path Traversal in filename
+                String safeName = fileName;
+                if (safeName == null || safeName.trim().isEmpty()) {
+                    safeName = "media_" + System.currentTimeMillis() + ".mp4";
+                }
+
+                // Strip directory traversal patterns: ../ or ..\ and illegal filesystem characters
+                safeName = safeName.replace("..", "_");
+                safeName = safeName.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
+
+                // 3. File extension whitelist (only allow media files, strictly block executables)
+                String lowerName = safeName.toLowerCase(Locale.ROOT);
+                boolean isAllowedExt = lowerName.endsWith(".mp4") ||
+                                       lowerName.endsWith(".mp3") ||
+                                       lowerName.endsWith(".m4a") ||
+                                       lowerName.endsWith(".webm") ||
+                                       lowerName.endsWith(".jpg") ||
+                                       lowerName.endsWith(".jpeg") ||
+                                       lowerName.endsWith(".png") ||
+                                       lowerName.endsWith(".webp");
+
+                if (!isAllowedExt) {
+                    safeName = safeName + ".mp4";
+                }
+
+                // Limit filename length to prevent filesystem buffer overflow
+                if (safeName.length() > 100) {
+                    String ext = safeName.substring(safeName.lastIndexOf("."));
+                    safeName = safeName.substring(0, 90) + ext;
+                }
+
+                // 4. Sanitize title
+                String safeTitle = (title != null && !title.trim().isEmpty())
+                    ? title.replaceAll("[\\r\\n]", " ").trim()
+                    : "Downloading Media";
+                if (safeTitle.length() > 60) {
+                    safeTitle = safeTitle.substring(0, 57) + "…";
+                }
+
+                // 5. Enqueue in Android OS DownloadManager
+                DownloadManager.Request request = new DownloadManager.Request(Uri.parse(trimmedUrl));
+                request.setTitle(safeTitle);
+                request.setDescription("Saving: " + safeName);
                 request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
+                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, safeName);
                 request.setAllowedOverMetered(true);
                 request.setAllowedOverRoaming(true);
 
                 DownloadManager manager = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
                 if (manager != null) {
                     manager.enqueue(request);
-                    Toast.makeText(context, "Downloading to Gallery/Downloads: " + fileName, Toast.LENGTH_LONG).show();
+                    Toast.makeText(context, "Secure download started: " + safeName, Toast.LENGTH_LONG).show();
                 }
             } catch (Exception e) {
                 e.printStackTrace();
