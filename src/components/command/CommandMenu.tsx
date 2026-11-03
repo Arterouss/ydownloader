@@ -15,7 +15,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useDownloadStore } from "@/store/download-store";
-import { isValidUrl } from "@/lib/utils";
+import { isValidUrl, getApiBaseUrl } from "@/lib/utils";
 import { toast } from "sonner";
 import type { MediaMetadata } from "@/lib/providers/base";
 
@@ -63,7 +63,8 @@ export function CommandMenu() {
       setCurrentView("dashboard");
       setParsing(true);
       try {
-        const res = await fetch("/api/parse", {
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(`${apiBase}/api/parse`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ url }),

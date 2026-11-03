@@ -29,6 +29,20 @@ export function formatDuration(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+export function getApiBaseUrl(): string {
+  if (typeof window !== "undefined") {
+    // If running in Capacitor native Android (origin is https://localhost or capacitor://localhost)
+    if (
+      window.location.protocol === "capacitor:" ||
+      window.location.hostname === "localhost" ||
+      (window as any).Capacitor?.isNativePlatform?.()
+    ) {
+      return process.env.NEXT_PUBLIC_API_URL || "https://ydownloader-cpvj.onrender.com";
+    }
+  }
+  return process.env.NEXT_PUBLIC_API_URL || "";
+}
+
 export function detectPlatform(url: string): string | null {
   try {
     const host = new URL(url).hostname.replace("www.", "").toLowerCase();
@@ -37,12 +51,13 @@ export function detectPlatform(url: string): string | null {
     if (host.includes("instagram.com")) return "instagram";
     if (host.includes("bilibili.com") || host.includes("b23.tv")) return "bilibili";
     if (host.includes("twitter.com") || host.includes("x.com")) return "x";
-    if (host.includes("douyin.com")) return "douyin";
+    if (host.includes("douyin.com") || host.includes("iesdouyin.com")) return "douyin";
+    if (host.includes("facebook.com") || host.includes("fb.watch") || host.includes("fb.com")) return "facebook";
+    if (host.includes("whatsapp.com") || host.includes("wa.me")) return "whatsapp";
     if (host.includes("vimeo.com")) return "vimeo";
     if (host.includes("dailymotion.com")) return "dailymotion";
     if (host.includes("pinterest.com") || host.includes("pin.it")) return "pinterest";
     if (host.includes("reddit.com")) return "reddit";
-    if (host.includes("facebook.com") || host.includes("fb.watch")) return "facebook";
     if (host.includes("twitch.tv")) return "twitch";
     return null;
   } catch {
@@ -65,8 +80,7 @@ export async function triggerFileDownload(title: string, ext: string, contentUrl
   const safeTitle = (title || "media").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80);
   const fileName = `${safeTitle}.${ext || "mp4"}`;
 
-  // Route download through same-origin proxy to eliminate CORS errors.
-  // Pass the direct CDN URL (from yt-dlp) as `directUrl` parameter.
+  const apiBase = getApiBaseUrl();
   const params = new URLSearchParams({
     ext: ext || "mp4",
     title: safeTitle,
@@ -76,8 +90,21 @@ export async function triggerFileDownload(title: string, ext: string, contentUrl
     params.set("directUrl", contentUrl);
   }
 
-  const proxyUrl = `/api/sample?${params.toString()}`;
+  const proxyUrl = `${apiBase}/api/sample?${params.toString()}`;
+  const effectiveDownloadUrl = contentUrl && !contentUrl.includes("example.com") ? contentUrl : proxyUrl;
 
+  // 1. Check if running inside Android APK with Native Download Manager
+  const androidDownloader = (window as any).AndroidDownloader;
+  if (androidDownloader && typeof androidDownloader.downloadFile === "function") {
+    try {
+      androidDownloader.downloadFile(effectiveDownloadUrl, fileName, title || "Media Download");
+      return;
+    } catch (e) {
+      console.warn("Android native downloader error, falling back to browser:", e);
+    }
+  }
+
+  // 2. Standard Web Browser Download
   try {
     const res = await fetch(proxyUrl);
     if (!res.ok) throw new Error(`Proxy returned ${res.status}`);
@@ -93,7 +120,6 @@ export async function triggerFileDownload(title: string, ext: string, contentUrl
     setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
   } catch (err) {
     console.warn("Proxy download fallback:", err);
-    // Fallback: direct link to proxy endpoint (browser will handle download)
     const a = document.createElement("a");
     a.href = proxyUrl;
     a.download = fileName;
@@ -102,4 +128,3 @@ export async function triggerFileDownload(title: string, ext: string, contentUrl
     document.body.removeChild(a);
   }
 }
-

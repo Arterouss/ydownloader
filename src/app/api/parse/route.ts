@@ -5,6 +5,16 @@ import type { MediaFormat, MediaMetadata } from "@/lib/providers/base";
 
 export const maxDuration = 30;
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
+}
+
 export async function POST(req: NextRequest) {
   let url = "";
   try {
@@ -14,14 +24,14 @@ export async function POST(req: NextRequest) {
     if (!url) {
       return NextResponse.json(
         { success: false, error: "URL is required" },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
     if (!isValidUrl(url)) {
       return NextResponse.json(
         { success: false, error: "Invalid URL format" },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -150,7 +160,7 @@ export async function POST(req: NextRequest) {
       formats,
     };
 
-    return NextResponse.json({ success: true, data: meta });
+    return NextResponse.json({ success: true, data: meta }, { headers: corsHeaders });
   } catch (err) {
     console.warn("[api/parse] yt-dlp error, falling back to oEmbed:", err instanceof Error ? err.message : String(err));
     
@@ -169,7 +179,7 @@ export async function POST(req: NextRequest) {
           success: true, 
           isMock: true, 
           data: fallbackResult.data 
-        });
+        }, { headers: corsHeaders });
       }
     } catch (fallbackErr) {
       console.error("Fallback also failed:", fallbackErr);
@@ -180,7 +190,7 @@ export async function POST(req: NextRequest) {
         success: false, 
         error: "Failed to analyze this URL. YouTube might be blocking datacenter IPs. Please try another link (like TikTok or Instagram)." 
       },
-      { status: 422 }
+      { status: 422, headers: corsHeaders }
     );
   }
 }

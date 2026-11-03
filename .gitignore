@@ -42,3 +42,11 @@ next-env.d.ts
 # prisma
 /prisma/*.db
 /prisma/*.db-journal
+
+
+# Android & Capacitor
+.gradle/
+android/.gradle/
+android/app/build/
+android/build/
+*.apk

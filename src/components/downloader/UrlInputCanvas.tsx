@@ -15,10 +15,12 @@ import {
   Twitter,
   Video,
   Globe,
+  Facebook,
+  MessageCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { cn, detectPlatform, isValidUrl } from "@/lib/utils";
+import { cn, detectPlatform, isValidUrl, getApiBaseUrl } from "@/lib/utils";
 import { useDownloadStore } from "@/store/download-store";
 import type { MediaMetadata } from "@/lib/providers/base";
 
@@ -26,6 +28,8 @@ const platformIcons: Record<string, React.ElementType> = {
   youtube: Youtube,
   tiktok: Music2,
   instagram: Instagram,
+  facebook: Facebook,
+  whatsapp: MessageCircle,
   bilibili: Tv,
   x: Twitter,
   douyin: Music2,
@@ -37,6 +41,8 @@ const platformLabels: Record<string, string> = {
   youtube: "YouTube",
   tiktok: "TikTok",
   instagram: "Instagram",
+  facebook: "Facebook",
+  whatsapp: "WhatsApp",
   bilibili: "Bilibili",
   x: "X",
   douyin: "Douyin",
@@ -45,13 +51,14 @@ const platformLabels: Record<string, string> = {
 };
 
 const supportedPlatforms = [
-  "YouTube",
-  "TikTok",
+  "Facebook",
   "Instagram",
-  "Bilibili",
-  "X",
+  "TikTok",
   "Douyin",
-  "Vimeo",
+  "Bilibili",
+  "YouTube",
+  "WhatsApp",
+  "X / Twitter",
 ];
 
 export function UrlInputCanvas() {
@@ -79,20 +86,8 @@ export function UrlInputCanvas() {
     }
   }, [url]);
 
-  const handlePaste = useCallback(async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text) {
-        setUrl(text.trim());
-        toast.success("URL pasted");
-      }
-    } catch {
-      toast.error("Clipboard access denied");
-    }
-  }, []);
-
-  const handleParse = useCallback(async () => {
-    const trimmed = url.trim();
+  const handleParseUrl = useCallback(async (rawUrl: string) => {
+    const trimmed = rawUrl.trim();
     if (!trimmed) {
       toast.error("Paste a media URL first");
       return;
@@ -107,7 +102,8 @@ export function UrlInputCanvas() {
     setParseError(null);
 
     try {
-      const res = await fetch("/api/parse", {
+      const apiBase = getApiBaseUrl();
+      const res = await fetch(`${apiBase}/api/parse`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: trimmed }),
@@ -130,7 +126,52 @@ export function UrlInputCanvas() {
     } finally {
       setParsing(false);
     }
-  }, [url, setParsing, setParseError, setActiveMetadata, setInspectorOpen]);
+  }, [setParsing, setParseError, setActiveMetadata, setInspectorOpen]);
+
+  const handleParse = useCallback(() => {
+    handleParseUrl(url);
+  }, [url, handleParseUrl]);
+
+  // Handle native Android Share Intent ("Share to YDownloader")
+  useEffect(() => {
+    const processSharedUrl = (incomingUrl: string) => {
+      if (incomingUrl && isValidUrl(incomingUrl)) {
+        setUrl(incomingUrl);
+        toast.info("Received shared link from social media!");
+        setTimeout(() => {
+          handleParseUrl(incomingUrl);
+        }, 200);
+      }
+    };
+
+    if (typeof window !== "undefined" && (window as any).__INITIAL_SHARED_URL__) {
+      const initial = (window as any).__INITIAL_SHARED_URL__;
+      (window as any).__INITIAL_SHARED_URL__ = null;
+      processSharedUrl(initial);
+    }
+
+    const handler = (e: any) => {
+      const sharedUrl = e?.detail?.url;
+      if (sharedUrl) {
+        processSharedUrl(sharedUrl);
+      }
+    };
+
+    window.addEventListener("appSharedUrl", handler);
+    return () => window.removeEventListener("appSharedUrl", handler);
+  }, [handleParseUrl]);
+
+  const handlePaste = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        setUrl(text.trim());
+        toast.success("URL pasted");
+      }
+    } catch {
+      toast.error("Clipboard access denied");
+    }
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !isParsing) {
@@ -143,140 +184,103 @@ export function UrlInputCanvas() {
 
   return (
     <div className="mx-auto w-full max-w-3xl">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-        className="text-center"
-      >
-        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-indigo-500/20 bg-indigo-500/10 px-3 py-1 text-xs font-medium text-indigo-300">
-          <Sparkles className="h-3.5 w-3.5" />
-          Universal Media Workspace
-        </div>
-        <h1 className="mb-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-          Download anything.{" "}
-          <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-            Beautifully.
-          </span>
-        </h1>
-        <p className="mb-8 text-sm text-zinc-400 sm:text-base">
-          Paste a link from YouTube, TikTok, Instagram, Bilibili, X & more
-        </p>
-      </motion.div>
+      {/* Glow container */}
+      <div className="relative group">
+        <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 opacity-70 blur-xl transition-all duration-500 group-hover:opacity-100 group-hover:blur-2xl" />
 
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.1 }}
-        className="relative"
-      >
-        <div
-          className={cn(
-            "group relative flex items-center gap-2 rounded-2xl border bg-zinc-900/70 p-2 shadow-2xl backdrop-blur-xl transition-all duration-300",
-            parseError
-              ? "border-red-500/40 shadow-red-500/10"
-              : "border-zinc-700/50 focus-within:border-indigo-500/50 focus-within:shadow-indigo-500/10"
-          )}
-        >
-          {/* Platform badge */}
-          <div
-            className={cn(
-              "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-all",
-              detected
-                ? `badge-${detected} text-white shadow-md`
-                : "bg-zinc-800 text-zinc-500"
-            )}
-          >
-            <PlatformIcon className="h-5 w-5" />
+        <div className="relative rounded-2xl border border-white/10 bg-zinc-950/80 p-2 shadow-2xl backdrop-blur-2xl">
+          <div className="flex items-center gap-3 px-3 py-2">
+            {/* Platform badge / icon */}
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-zinc-900 border border-zinc-800 transition-colors">
+              <PlatformIcon className="h-5 w-5 text-zinc-300" />
+            </div>
+
+            {/* Input field */}
+            <input
+              ref={inputRef}
+              type="text"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Paste social media link (Douyin, Bilibili, IG, FB, YT, WA, TikTok)..."
+              disabled={isParsing}
+              className="h-11 w-full bg-transparent text-sm text-white placeholder-zinc-500 focus:outline-none disabled:opacity-50"
+            />
+
+            {/* Paste button */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handlePaste}
+              disabled={isParsing}
+              className="hidden sm:flex items-center gap-1.5 text-zinc-400 hover:text-white"
+            >
+              <ClipboardPaste className="h-4 w-4" />
+              <span>Paste</span>
+            </Button>
+
+            {/* Parse / Download button */}
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleParse}
+              disabled={isParsing || !url.trim()}
+              className="relative shrink-0 overflow-hidden bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 font-medium text-white shadow-lg shadow-indigo-500/25 transition-all hover:shadow-indigo-500/40 hover:brightness-110 active:scale-95 disabled:opacity-50 disabled:shadow-none"
+            >
+              {isParsing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Analyzing…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-1.5 h-4 w-4" />
+                  Analyze
+                </>
+              )}
+            </Button>
           </div>
 
-          <input
-            ref={inputRef}
-            type="url"
-            value={url}
-            onChange={(e) => {
-              setUrl(e.target.value);
-              setParseError(null);
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder="Paste media URL here…"
-            disabled={isParsing}
-            className="h-11 flex-1 bg-transparent text-sm text-white placeholder:text-zinc-500 focus:outline-none disabled:opacity-50 sm:text-base"
-            spellCheck={false}
-            autoComplete="off"
-          />
+          {/* Quick-select platform indicator */}
+          <div className="flex flex-wrap items-center justify-between border-t border-zinc-800/80 px-4 py-2.5 text-xs text-zinc-500">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-zinc-400">Supported:</span>
+              <div className="flex flex-wrap gap-1.5">
+                {supportedPlatforms.map((p) => (
+                  <span
+                    key={p}
+                    className="rounded bg-zinc-900 px-2 py-0.5 text-[11px] text-zinc-400"
+                  >
+                    {p}
+                  </span>
+                ))}
+              </div>
+            </div>
 
-          <AnimatePresence>
             {detected && (
-              <motion.span
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                className="hidden shrink-0 rounded-md bg-zinc-800 px-2 py-1 text-xs font-medium text-zinc-300 sm:inline"
-              >
-                {platformLabels[detected] || detected}
-              </motion.span>
+              <span className="font-medium text-indigo-400 capitalize">
+                Detected: {platformLabels[detected] || detected}
+              </span>
             )}
-          </AnimatePresence>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handlePaste}
-            disabled={isParsing}
-            className="shrink-0 text-zinc-400 hover:text-white"
-            title="Paste from clipboard"
-          >
-            <ClipboardPaste className="h-4 w-4" />
-          </Button>
-
-          <Button
-            onClick={handleParse}
-            disabled={isParsing || !url.trim()}
-            className="h-11 shrink-0 rounded-xl bg-indigo-500 px-3 text-xs font-semibold text-white shadow-lg shadow-indigo-500/25 hover:bg-indigo-400 disabled:opacity-40 sm:px-5 sm:text-sm"
-          >
-            {isParsing ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Parsing…
-              </>
-            ) : (
-              "Analyze"
-            )}
-          </Button>
+          </div>
         </div>
+      </div>
 
-        <AnimatePresence>
-          {parseError && (
-            <motion.div
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="mt-2 flex items-center gap-1.5 text-sm text-red-400"
-            >
-              <AlertCircle className="h-3.5 w-3.5" />
-              {parseError}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
-
-      {/* Platform chips */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.3 }}
-        className="mt-6 flex flex-wrap items-center justify-center gap-2"
-      >
-        {supportedPlatforms.map((p) => (
-          <span
-            key={p}
-            className="rounded-full border border-zinc-800 bg-zinc-900/50 px-3 py-1 text-xs text-zinc-500"
+      {/* Error alert */}
+      <AnimatePresence>
+        {parseError && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="mt-3 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400"
           >
-            {p}
-          </span>
-        ))}
-      </motion.div>
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{parseError}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

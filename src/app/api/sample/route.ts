@@ -3,6 +3,17 @@ import { getFormatUrl } from "@/lib/ytdlp";
 
 export const maxDuration = 60;
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Range",
+  "Access-Control-Expose-Headers": "Content-Length, Content-Range, Content-Disposition",
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
+}
+
 /**
  * Proxy endpoint that streams real video/audio content to the browser.
  *
@@ -47,7 +58,7 @@ export async function GET(req: NextRequest) {
     if (!streamUrl) {
       return NextResponse.json(
         { success: false, error: "No stream URL available" },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -90,6 +101,7 @@ export async function GET(req: NextRequest) {
     const contentLength = res.headers.get("content-length");
 
     const responseHeaders: Record<string, string> = {
+      ...corsHeaders,
       "Content-Type": contentType,
       "Content-Disposition": `attachment; filename="${fileName}"`,
       "Cache-Control": "no-cache",
@@ -108,7 +120,7 @@ export async function GET(req: NextRequest) {
     console.error("[api/sample] Error:", err);
     return NextResponse.json(
       { success: false, error: "Failed to stream media" },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }

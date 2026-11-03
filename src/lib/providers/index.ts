@@ -2,6 +2,8 @@ import { BaseProvider, type MediaMetadata, type ParseResult } from "./base";
 import { YouTubeProvider } from "./youtube";
 import { TikTokProvider } from "./tiktok";
 import { InstagramProvider } from "./instagram";
+import { FacebookProvider } from "./facebook";
+import { WhatsAppProvider } from "./whatsapp";
 import { BilibiliProvider } from "./bilibili";
 import { XProvider } from "./x";
 import { DouyinProvider } from "./douyin";
@@ -14,6 +16,8 @@ const providers: BaseProvider[] = [
   new YouTubeProvider(),
   new TikTokProvider(),
   new InstagramProvider(),
+  new FacebookProvider(),
+  new WhatsAppProvider(),
   new BilibiliProvider(),
   new XProvider(),
   new DouyinProvider(),
