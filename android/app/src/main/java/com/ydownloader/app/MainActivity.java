@@ -8,6 +8,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
@@ -19,7 +21,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class MainActivity extends BridgeActivity {
-    // Regex strictly matching valid HTTP/HTTPS URLs
     private static final Pattern URL_PATTERN = Pattern.compile("https?://[a-zA-Z0-9.-]+(?:/[^\\s]*)?");
     private static final int MAX_URL_LENGTH = 2048;
     private String pendingSharedUrl = null;
@@ -31,11 +32,8 @@ public class MainActivity extends BridgeActivity {
         try {
             WebView webView = getBridge().getWebView();
             if (webView != null) {
-                // Disable remote debugging if not in debuggable build to prevent tamper
                 boolean isDebuggable = (0 != (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE));
                 WebView.setWebContentsDebuggingEnabled(isDebuggable);
-
-                // Register secure native download bridge & floating widget bridge
                 webView.addJavascriptInterface(new SecureDownloaderBridge(this), "AndroidDownloader");
             }
         } catch (Exception e) {
@@ -111,12 +109,22 @@ public class MainActivity extends BridgeActivity {
             try {
                 if (getBridge() != null && getBridge().getWebView() != null) {
                     WebView wv = getBridge().getWebView();
-                    String script = String.format(
+                    final String script = String.format(
                         "window.__INITIAL_SHARED_URL__ = %s;" +
                         "window.dispatchEvent(new CustomEvent('appSharedUrl', { detail: { url: %s } }));",
                         jsonQuotedUrl, jsonQuotedUrl
                     );
                     wv.evaluateJavascript(script, null);
+
+                    // Re-dispatch after 1.2s to guarantee delivery even if remote page is still loading
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        try {
+                            if (getBridge() != null && getBridge().getWebView() != null) {
+                                getBridge().getWebView().evaluateJavascript(script, null);
+                            }
+                        } catch (Exception ignored) {}
+                    }, 1200);
+
                     Toast.makeText(MainActivity.this, "Shared link verified and loaded!", Toast.LENGTH_SHORT).show();
                     pendingSharedUrl = null;
                 }
@@ -174,7 +182,6 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public void downloadFile(String fileUrl, String fileName, String title) {
             try {
-                // 1. Validate File URL Scheme (strictly HTTPS or HTTP only)
                 if (fileUrl == null || fileUrl.trim().isEmpty()) return;
                 String trimmedUrl = fileUrl.trim();
                 if (!trimmedUrl.startsWith("https://") && !trimmedUrl.startsWith("http://")) {
@@ -182,7 +189,6 @@ public class MainActivity extends BridgeActivity {
                     return;
                 }
 
-                // 2. Prevent Path Traversal in filename
                 String safeName = fileName;
                 if (safeName == null || safeName.trim().isEmpty()) {
                     safeName = "media_" + System.currentTimeMillis() + ".mp4";
@@ -191,7 +197,6 @@ public class MainActivity extends BridgeActivity {
                 safeName = safeName.replace("..", "_");
                 safeName = safeName.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
 
-                // 3. File extension whitelist
                 String lowerName = safeName.toLowerCase(Locale.ROOT);
                 boolean isAllowedExt = lowerName.endsWith(".mp4") ||
                                        lowerName.endsWith(".mp3") ||
@@ -211,7 +216,6 @@ public class MainActivity extends BridgeActivity {
                     safeName = safeName.substring(0, 90) + ext;
                 }
 
-                // 4. Sanitize title
                 String safeTitle = (title != null && !title.trim().isEmpty())
                     ? title.replaceAll("[\\r\\n]", " ").trim()
                     : "Downloading Media";
@@ -219,7 +223,6 @@ public class MainActivity extends BridgeActivity {
                     safeTitle = safeTitle.substring(0, 57) + "…";
                 }
 
-                // 5. Enqueue in Android OS DownloadManager
                 DownloadManager.Request request = new DownloadManager.Request(Uri.parse(trimmedUrl));
                 request.setTitle(safeTitle);
                 request.setDescription("Saving: " + safeName);

@@ -5,9 +5,15 @@ const config: CapacitorConfig = {
   appName: "YDownloader",
   webDir: "out",
   server: {
-    androidScheme: "https",
+    // Live Cloud OTA Updates: Every git push to Render is automatically loaded by the APK!
+    url: "https://ydownloader-cpvj.onrender.com",
     cleartext: true,
-    allowNavigation: ["ydownloader-cpvj.onrender.com", "*.render.com"],
+    androidScheme: "https",
+    allowNavigation: [
+      "ydownloader-cpvj.onrender.com",
+      "*.onrender.com",
+      "*.render.com",
+    ],
   },
   android: {
     allowMixedContent: true,
@@ -15,4 +21,3 @@ const config: CapacitorConfig = {
 };
 
 export default config;
-
