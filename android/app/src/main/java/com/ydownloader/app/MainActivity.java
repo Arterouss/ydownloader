@@ -5,8 +5,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.Settings;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 import android.widget.Toast;
@@ -33,7 +35,7 @@ public class MainActivity extends BridgeActivity {
                 boolean isDebuggable = (0 != (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE));
                 WebView.setWebContentsDebuggingEnabled(isDebuggable);
 
-                // Register secure native download bridge
+                // Register secure native download bridge & floating widget bridge
                 webView.addJavascriptInterface(new SecureDownloaderBridge(this), "AndroidDownloader");
             }
         } catch (Exception e) {
@@ -103,7 +105,6 @@ public class MainActivity extends BridgeActivity {
     private void sendUrlToWebView(String url) {
         if (url == null || url.trim().isEmpty() || url.length() > MAX_URL_LENGTH) return;
 
-        // Security: Use JSONObject.quote to mathematically prevent any JavaScript string escape / XSS injection
         final String jsonQuotedUrl = JSONObject.quote(url.trim());
 
         runOnUiThread(() -> {
@@ -133,6 +134,44 @@ public class MainActivity extends BridgeActivity {
         }
 
         @JavascriptInterface
+        public boolean isFloatingWidgetActive() {
+            return FloatingWidgetService.isServiceRunning();
+        }
+
+        @JavascriptInterface
+        public void toggleFloatingWidget() {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
+                    Intent intent = new Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:" + context.getPackageName())
+                    );
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    context.startActivity(intent);
+                    Toast.makeText(context, "Aktifkan izin 'Tampilkan di atas aplikasi lain' untuk YDownloader", Toast.LENGTH_LONG).show();
+                    return;
+                }
+
+                if (FloatingWidgetService.isServiceRunning()) {
+                    Intent intent = new Intent(context, FloatingWidgetService.class);
+                    context.stopService(intent);
+                    Toast.makeText(context, "Tombol mengambang dinonaktifkan", Toast.LENGTH_SHORT).show();
+                } else {
+                    Intent intent = new Intent(context, FloatingWidgetService.class);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        context.startForegroundService(intent);
+                    } else {
+                        context.startService(intent);
+                    }
+                    Toast.makeText(context, "Tombol mengambang aktif di samping layar!", Toast.LENGTH_LONG).show();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                Toast.makeText(context, "Error floating widget: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        }
+
+        @JavascriptInterface
         public void downloadFile(String fileUrl, String fileName, String title) {
             try {
                 // 1. Validate File URL Scheme (strictly HTTPS or HTTP only)
@@ -149,11 +188,10 @@ public class MainActivity extends BridgeActivity {
                     safeName = "media_" + System.currentTimeMillis() + ".mp4";
                 }
 
-                // Strip directory traversal patterns: ../ or ..\ and illegal filesystem characters
                 safeName = safeName.replace("..", "_");
                 safeName = safeName.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
 
-                // 3. File extension whitelist (only allow media files, strictly block executables)
+                // 3. File extension whitelist
                 String lowerName = safeName.toLowerCase(Locale.ROOT);
                 boolean isAllowedExt = lowerName.endsWith(".mp4") ||
                                        lowerName.endsWith(".mp3") ||
@@ -168,7 +206,6 @@ public class MainActivity extends BridgeActivity {
                     safeName = safeName + ".mp4";
                 }
 
-                // Limit filename length to prevent filesystem buffer overflow
                 if (safeName.length() > 100) {
                     String ext = safeName.substring(safeName.lastIndexOf("."));
                     safeName = safeName.substring(0, 90) + ext;

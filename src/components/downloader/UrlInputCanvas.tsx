@@ -267,6 +267,33 @@ export function UrlInputCanvas() {
         </div>
       </div>
 
+      {/* Floating Widget Activation Banner */}
+      <div className="mt-3 flex items-center justify-between rounded-xl border border-zinc-800/80 bg-zinc-950/60 px-4 py-2.5 backdrop-blur-md">
+        <div className="flex items-center gap-2.5 text-xs text-zinc-400">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-pink-500 text-white font-bold shadow-md shadow-indigo-500/20">
+            ⚡
+          </span>
+          <div>
+            <strong className="block text-zinc-200">Tombol Mengambang (Floating Widget)</strong>
+            <span className="text-[11px] text-zinc-400">Ikon melayang di samping layar seperti Shazam</span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== "undefined" && (window as any).AndroidDownloader?.toggleFloatingWidget) {
+              (window as any).AndroidDownloader.toggleFloatingWidget();
+            } else {
+              toast.info("Fitur Tombol Mengambang aktif saat dijalankan di aplikasi Android (APK)!");
+            }
+          }}
+          className="flex items-center gap-1.5 rounded-lg bg-indigo-500/15 px-3 py-1.5 text-xs font-medium text-indigo-400 border border-indigo-500/30 transition-all hover:bg-indigo-500/25 active:scale-95"
+        >
+          <span>Aktifkan / Matikan</span>
+        </button>
+      </div>
+
       {/* Error alert */}
       <AnimatePresence>
         {parseError && (
