@@ -62,7 +62,11 @@ export async function getFormatUrl(
   formatId: string
 ): Promise<string> {
   const safeUrl = url.replace(/"/g, '\\"');
-  const cmd = `python3 -m yt_dlp --js-runtimes node -f "${formatId}" --get-url --no-playlist "${safeUrl}"`;
+  // Always ensure audio is included by selecting progressive stream with audio
+  const formatSelector = formatId && !formatId.includes("best")
+    ? `${formatId}[acodec!=none]/best[acodec!=none]/best`
+    : "best[acodec!=none]/best";
+  const cmd = `python3 -m yt_dlp --js-runtimes node -f "${formatSelector}" --get-url --no-playlist "${safeUrl}"`;
 
   const { stdout } = await execAsync(cmd, {
     timeout: 30000,
@@ -85,7 +89,10 @@ export async function downloadToFile(
 ): Promise<string> {
   const safeUrl = url.replace(/"/g, '\\"');
   const outputPath = `${outputDir}/${fileName}`;
-  const cmd = `python3 -m yt_dlp --js-runtimes node -f "${formatId}" --no-playlist --merge-output-format mp4 -o "${outputPath}" "${safeUrl}"`;
+  const formatSelector = formatId && !formatId.includes("best")
+    ? `${formatId}+bestaudio/best`
+    : "bestvideo+bestaudio/best";
+  const cmd = `python3 -m yt_dlp --js-runtimes node -f "${formatSelector}" --no-playlist --merge-output-format mp4 -o "${outputPath}" "${safeUrl}"`;
 
   await execAsync(cmd, {
     timeout: 120000,

@@ -45,10 +45,15 @@ export async function POST(req: NextRequest) {
     const audioFormats: MediaFormat[] = [];
     const seenQualities = new Set<string>();
 
-    // Sort formats by height descending
+    // Prioritize formats that HAVE AUDIO first, then by height descending
     const sortedFormats = (info.formats || [])
       .filter((f) => f.url && !f.url.includes("manifest"))
-      .sort((a, b) => (b.height || 0) - (a.height || 0));
+      .sort((a, b) => {
+        const aHasAudio = a.acodec && a.acodec !== "none" ? 1 : 0;
+        const bHasAudio = b.acodec && b.acodec !== "none" ? 1 : 0;
+        if (aHasAudio !== bHasAudio) return bHasAudio - aHasAudio;
+        return (b.height || 0) - (a.height || 0);
+      });
 
     for (const f of sortedFormats) {
       const isVideo = f.vcodec && f.vcodec !== "none";

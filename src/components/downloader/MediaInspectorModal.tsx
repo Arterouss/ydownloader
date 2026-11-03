@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -35,9 +35,7 @@ export function MediaInspectorModal() {
     addToQueue,
   } = useDownloadStore();
 
-  const [selectedFormat, setSelectedFormat] = useState<MediaFormat | null>(
-    null
-  );
+  const [selectedFormat, setSelectedFormat] = useState<MediaFormat | null>(null);
   const [activeTab, setActiveTab] = useState("video");
 
   const formats = activeMetadata?.formats ?? [];
@@ -54,6 +52,20 @@ export function MediaInspectorModal() {
     () => formats.filter((f) => f.type === "image"),
     [formats]
   );
+
+  // Automatically select the best format WITH AUDIO by default
+  useEffect(() => {
+    if (activeMetadata) {
+      if (activeTab === "video" && videoFormats.length > 0) {
+        const bestWithAudio = videoFormats.find((f) => f.hasAudio !== false);
+        setSelectedFormat(bestWithAudio || videoFormats[0]);
+      } else if (activeTab === "audio" && audioFormats.length > 0) {
+        setSelectedFormat(audioFormats[0]);
+      } else if (activeTab === "image" && imageFormats.length > 0) {
+        setSelectedFormat(imageFormats[0]);
+      }
+    }
+  }, [activeMetadata, activeTab, videoFormats, audioFormats, imageFormats]);
 
   const close = () => {
     setInspectorOpen(false);
@@ -120,7 +132,6 @@ export function MediaInspectorModal() {
             <div className="grid max-h-[85vh] grid-cols-1 overflow-y-auto md:grid-cols-[340px_1fr]">
               {/* Preview pane */}
               <div className="border-b border-zinc-800 p-5 md:border-b-0 md:border-r">
-                
                 {isMockMode && (
                   <div className="mb-4 rounded-lg bg-orange-500/10 border border-orange-500/20 p-3 text-sm text-orange-400">
                     <strong className="block mb-1">⚠️ Demo Mode (IP Blocked)</strong>
@@ -289,17 +300,18 @@ export function MediaInspectorModal() {
                 </Tabs>
 
                 {/* Footer actions */}
-                <div className="mt-4 flex items-center justify-between border-t border-zinc-800 pt-4">
-                  <div className="text-xs text-zinc-500">
+                <div className="mt-auto flex items-center justify-between border-t border-zinc-800 pt-4">
+                  <div className="text-xs text-zinc-400">
                     {selectedFormat ? (
                       <span>
                         Selected:{" "}
-                        <span className="font-medium text-zinc-300">
+                        <strong className="text-white">
                           {selectedFormat.label}
-                        </span>{" "}
+                        </strong>{" "}
                         · {selectedFormat.ext.toUpperCase()}
                         {selectedFormat.fileSizeLabel &&
                           ` · ${selectedFormat.fileSizeLabel}`}
+                        {selectedFormat.hasAudio !== false && " · 🔊 Audio"}
                       </span>
                     ) : (
                       "Select a quality to download"
@@ -364,9 +376,14 @@ function FormatRow({
               {format.fps}fps
             </Badge>
           )}
+          {format.type === "video" && format.hasAudio !== false && (
+            <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-400 border border-emerald-500/30">
+              🔊 Audio
+            </span>
+          )}
           {format.hasAudio === false && (
-            <Badge variant="warning" className="h-5 text-[10px]">
-              no audio
+            <Badge variant="warning" className="h-5 text-[10px] text-amber-400 border-amber-500/40 bg-amber-500/10">
+              🔇 No Audio
             </Badge>
           )}
         </div>

@@ -77,6 +77,11 @@ export function isValidUrl(str: string): boolean {
 export async function triggerFileDownload(title: string, ext: string, contentUrl?: string) {
   if (typeof window === "undefined") return;
 
+  let targetUrl = contentUrl;
+  if (targetUrl && targetUrl.includes("flower.mp4")) {
+    targetUrl = "https://www.w3schools.com/html/mov_bbb.mp4";
+  }
+
   const safeTitle = (title || "media").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80);
   const fileName = `${safeTitle}.${ext || "mp4"}`;
 
@@ -86,12 +91,12 @@ export async function triggerFileDownload(title: string, ext: string, contentUrl
     title: safeTitle,
   });
 
-  if (contentUrl && contentUrl.startsWith("http") && !contentUrl.includes("example.com")) {
-    params.set("directUrl", contentUrl);
+  if (targetUrl && targetUrl.startsWith("http") && !targetUrl.includes("example.com")) {
+    params.set("directUrl", targetUrl);
   }
 
   const proxyUrl = `${apiBase}/api/sample?${params.toString()}`;
-  const effectiveDownloadUrl = contentUrl && !contentUrl.includes("example.com") ? contentUrl : proxyUrl;
+  const effectiveDownloadUrl = targetUrl && !targetUrl.includes("example.com") ? targetUrl : proxyUrl;
 
   // 1. Check if running inside Android APK with Native Download Manager
   const androidDownloader = (window as any).AndroidDownloader;
