@@ -150,6 +150,8 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
       createdAt: Date.now(),
     };
     set((s) => ({ queue: [item, ...s.queue] }));
+    // Start download immediately on click (like normal download sites)
+    triggerFileDownload(metadata.title, format.ext, format.url);
     setTimeout(() => get().simulateDownload(id), 300);
     return id;
   },
@@ -224,10 +226,7 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
           speed: 0,
           status: "completed",
         });
-        const done = get().queue.find((q) => q.id === id);
-        if (done) {
-          triggerFileDownload(done.metadata.title, done.format.ext, done.format.url);
-        }
+        // Download was already triggered immediately on click
         set((s) => {
           const itemDone = s.queue.find((q) => q.id === id);
           if (!itemDone) return s;

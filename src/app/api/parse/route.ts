@@ -239,19 +239,20 @@ async function extractYouTube(url: string): Promise<MediaMetadata | null> {
         formats.push({
           id: "yt_mp4_hd",
           type: "video",
-          label: "MP4 Video (dengan Suara)",
-          quality: "HD",
+          label: "MP4 Video (HD)",
+          quality: "720p",
           ext: "mp4",
           url: yt.mp4,
           hasAudio: true,
         });
+        seenQualities.add("720p");
         seenQualities.add("HD");
       }
       if (yt.mp3) {
         formats.push({
           id: "yt_mp3",
           type: "audio",
-          label: "Audio MP3 (128kbps)",
+          label: "MP3 Audio",
           quality: "128kbps",
           bitrate: "128kbps",
           ext: "mp3",
@@ -296,7 +297,7 @@ async function extractYouTube(url: string): Promise<MediaMetadata | null> {
           formats.push({
             id: f.format_id,
             type: "video",
-            label: `${q} Progressive`,
+            label: `${q} MP4`,
             quality: q,
             resolution: f.width && f.height ? `${f.width}x${f.height}` : undefined,
             fps: f.fps || undefined,
