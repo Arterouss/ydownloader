@@ -214,47 +214,273 @@ async function extractFacebook(url: string): Promise<MediaMetadata | null> {
   return null;
 }
 
-async function extractYouTubeFallback(url: string): Promise<MediaMetadata | null> {
+async function extractYouTube(url: string): Promise<MediaMetadata | null> {
+  let title = "YouTube Video";
+  let author = "YouTube Creator";
+  let thumbnail = "";
+  let duration = 0;
+  let durationLabel = "";
+  const formats: MediaFormat[] = [];
+  const seenQualities = new Set<string>();
+
+  // 1. Priority 1: btch.youtube returns direct progressive stream with AAC audio, bypasses YouTube 403
   try {
     const btch = await import("btch-downloader");
-    const yt = await btch.youtube(url);
-    if (yt.status && (yt.mp4 || yt.mp3)) {
-      const formats: MediaFormat[] = [];
+    const ytPromise = btch.youtube(url);
+    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000));
+    const yt: any = await Promise.race([ytPromise, timeoutPromise]);
+
+    if (yt && yt.status && (yt.mp4 || yt.mp3)) {
+      if (yt.title) title = yt.title;
+      if (yt.author) author = yt.author;
+      if (yt.thumbnail) thumbnail = yt.thumbnail;
+
       if (yt.mp4) {
         formats.push({
-          id: "yt_mp4_720",
+          id: "yt_mp4_hd",
           type: "video",
-          label: "720p HD",
-          quality: "720p",
+          label: "MP4 Video (dengan Suara)",
+          quality: "HD",
           ext: "mp4",
           url: yt.mp4,
           hasAudio: true,
         });
+        seenQualities.add("HD");
       }
       if (yt.mp3) {
         formats.push({
           id: "yt_mp3",
           type: "audio",
-          label: "128kbps MP3",
+          label: "Audio MP3 (128kbps)",
           quality: "128kbps",
+          bitrate: "128kbps",
           ext: "mp3",
           url: yt.mp3,
           hasAudio: true,
         });
+        seenQualities.add("audio-128");
       }
+    }
+  } catch (e) {
+    console.warn("[extractYouTube] btch failed:", e);
+  }
+
+  // 2. Enrich with yt-dlp metadata and any additional progressive formats with audio
+  try {
+    const info = await getVideoInfo(url);
+    if (info) {
+      if (!title || title === "YouTube Video") title = info.title || title;
+      if (!author || author === "YouTube Creator") author = info.channel || author;
+      if (!thumbnail) thumbnail = info.thumbnail || "";
+      if (info.duration) {
+        duration = info.duration;
+        const mins = Math.floor(duration / 60);
+        const secs = Math.floor(duration % 60);
+        durationLabel = `${mins}:${secs.toString().padStart(2, "0")}`;
+      }
+
+      const sorted = (info.formats || [])
+        .filter((f: any) => f.url && !f.url.includes("manifest"))
+        .sort((a: any, b: any) => (b.height || 0) - (a.height || 0));
+
+      for (const f of sorted) {
+        const isVideo = f.vcodec && f.vcodec !== "none";
+        const isAudio = f.acodec && f.acodec !== "none";
+
+        // ONLY progressive formats with audio!
+        if (isVideo && isAudio) {
+          const q = qualityLabel(f);
+          if (seenQualities.has(q)) continue;
+          seenQualities.add(q);
+          const size = f.filesize || f.filesize_approx || 0;
+          formats.push({
+            id: f.format_id,
+            type: "video",
+            label: `${q} Progressive`,
+            quality: q,
+            resolution: f.width && f.height ? `${f.width}x${f.height}` : undefined,
+            fps: f.fps || undefined,
+            ext: f.ext || "mp4",
+            fileSize: size || undefined,
+            fileSizeLabel: size ? formatBytes(size) : undefined,
+            url: f.url,
+            hasAudio: true,
+          });
+        } else if (isAudio && !isVideo) {
+          const bitrateKbps = f.tbr ? Math.round(f.tbr) : 128;
+          const key = `audio-${bitrateKbps}`;
+          if (seenQualities.has(key)) continue;
+          seenQualities.add(key);
+          const size = f.filesize || f.filesize_approx || 0;
+          formats.push({
+            id: f.format_id,
+            type: "audio",
+            label: `${bitrateKbps}kbps`,
+            quality: `${bitrateKbps}kbps`,
+            bitrate: `${bitrateKbps}kbps`,
+            ext: f.ext || "m4a",
+            fileSize: size || undefined,
+            fileSizeLabel: size ? formatBytes(size) : undefined,
+            url: f.url,
+            hasAudio: true,
+          });
+        }
+      }
+    }
+  } catch (ytErr) {
+    console.warn("[extractYouTube] yt-dlp failed:", ytErr);
+  }
+
+  if (formats.length > 0) {
+    return {
+      id: `yt_${Date.now()}`,
+      url,
+      title,
+      author,
+      thumbnail,
+      duration: duration || undefined,
+      durationLabel: durationLabel || undefined,
+      platform: "youtube",
+      formats,
+    };
+  }
+
+  return null;
+}
+
+async function extractInstagram(url: string): Promise<MediaMetadata | null> {
+  // 1. SnapSave
+  try {
+    const { snapsave } = await import("snapsave-media-downloader");
+    const snap = await snapsave(url);
+    if (snap.success && snap.data?.media?.length) {
+      const formats: MediaFormat[] = snap.data.media
+        .filter((m) => m.url)
+        .map((m, idx) => ({
+          id: `ig_${idx}`,
+          type: m.type === "image" ? "image" : "video",
+          label: m.resolution || (m.type === "image" ? "HD Photo" : "HD Video"),
+          quality: m.resolution || "HD",
+          ext: m.type === "image" ? "jpg" : "mp4",
+          url: m.url,
+          hasAudio: m.type === "image" ? false : true,
+        }));
+      if (formats.length > 0) {
+        return {
+          id: `ig_${Date.now()}`,
+          url,
+          title: snap.data.description || "Instagram Post",
+          author: "Instagram Creator",
+          thumbnail: snap.data.preview || snap.data.media[0]?.thumbnail || "",
+          platform: "instagram",
+          formats,
+        };
+      }
+    }
+  } catch (e) {
+    console.warn("[SnapSave Instagram] failed:", e);
+  }
+
+  // 2. btch.igdl
+  try {
+    const btch = await import("btch-downloader");
+    const ig = await btch.igdl(url);
+    if (ig.status && ig.result?.length) {
+      const formats: MediaFormat[] = ig.result
+        .filter((item) => item.url)
+        .map((item, idx) => {
+          const isVideo = item.url.includes(".mp4");
+          return {
+            id: `ig_b_${idx}`,
+            type: isVideo ? "video" : "image",
+            label: isVideo ? "HD Video" : "HD Photo",
+            quality: "HD",
+            ext: isVideo ? "mp4" : "jpg",
+            url: item.url,
+            hasAudio: isVideo ? true : false,
+          };
+        });
+      if (formats.length > 0) {
+        return {
+          id: `ig_${Date.now()}`,
+          url,
+          title: "Instagram Post",
+          author: "Instagram Creator",
+          thumbnail: ig.result[0]?.thumbnail || "",
+          platform: "instagram",
+          formats,
+        };
+      }
+    }
+  } catch (e) {
+    console.warn("[btch Instagram] failed:", e);
+  }
+
+  return null;
+}
+
+async function extractTwitter(url: string): Promise<MediaMetadata | null> {
+  // 1. SnapSave
+  try {
+    const { snapsave } = await import("snapsave-media-downloader");
+    const snap = await snapsave(url);
+    if (snap.success && snap.data?.media?.length) {
+      const formats: MediaFormat[] = snap.data.media
+        .filter((m) => m.url)
+        .map((m, idx) => ({
+          id: `tw_${idx}`,
+          type: m.type === "image" ? "image" : "video",
+          label: m.resolution || "HD Video",
+          quality: m.resolution || "HD",
+          ext: m.type === "image" ? "jpg" : "mp4",
+          url: m.url,
+          hasAudio: m.type === "image" ? false : true,
+        }));
+      if (formats.length > 0) {
+        return {
+          id: `tw_${Date.now()}`,
+          url,
+          title: snap.data.description || "Twitter Post",
+          author: "Twitter Creator",
+          thumbnail: snap.data.preview || "",
+          platform: "x",
+          formats,
+        };
+      }
+    }
+  } catch (e) {
+    console.warn("[SnapSave Twitter] failed:", e);
+  }
+
+  // 2. btch.twitter
+  try {
+    const btch = await import("btch-downloader");
+    const tw = await btch.twitter(url);
+    if (tw.status && tw.url) {
       return {
-        id: `yt_${Date.now()}`,
+        id: `tw_${Date.now()}`,
         url,
-        title: yt.title || "YouTube Video",
-        author: yt.author || "YouTube Creator",
-        thumbnail: yt.thumbnail || "",
-        platform: "youtube",
-        formats,
+        title: tw.title || "Twitter Video",
+        author: "Twitter Creator",
+        thumbnail: "",
+        platform: "x",
+        formats: [
+          {
+            id: "tw_video",
+            type: "video",
+            label: "HD Video",
+            quality: "HD",
+            ext: "mp4",
+            url: tw.url,
+            hasAudio: true,
+          },
+        ],
       };
     }
   } catch (e) {
-    console.warn("[btch YouTube] failed:", e);
+    console.warn("[btch Twitter] failed:", e);
   }
+
   return null;
 }
 
@@ -276,7 +502,9 @@ function buildYtDlpMeta(info: any, url: string, platform: string): MediaMetadata
     const isVideo = f.vcodec && f.vcodec !== "none";
     const isAudio = f.acodec && f.acodec !== "none";
 
-    if (isVideo) {
+    // CRITICAL: Strictly ensure video formats have audio!
+    // Never provide mute / video-only raw DASH streams to the user.
+    if (isVideo && isAudio) {
       const quality = qualityLabel(f);
       const key = `${quality}-${f.fps || 30}-${f.ext}`;
       if (seenQualities.has(key)) continue;
@@ -296,7 +524,7 @@ function buildYtDlpMeta(info: any, url: string, platform: string): MediaMetadata
         fileSize: size || undefined,
         fileSizeLabel: size ? formatBytes(size) : undefined,
         url: f.url,
-        hasAudio: !!isAudio,
+        hasAudio: true,
       });
     } else if (isAudio && !isVideo) {
       const bitrateKbps = f.tbr ? Math.round(f.tbr) : 128;
@@ -316,6 +544,24 @@ function buildYtDlpMeta(info: any, url: string, platform: string): MediaMetadata
         fileSize: size || undefined,
         fileSizeLabel: size ? formatBytes(size) : undefined,
         url: f.url,
+        hasAudio: true,
+      });
+    }
+  }
+
+  // Fallback: If no progressive format was separated, try finding any format with audio
+  if (videoFormats.length === 0 && info.formats?.length) {
+    const prog = info.formats.find(
+      (f: any) => f.vcodec && f.vcodec !== "none" && f.acodec && f.acodec !== "none" && f.url
+    );
+    if (prog) {
+      videoFormats.push({
+        id: prog.format_id,
+        type: "video",
+        label: "MP4 Video (Audio)",
+        quality: qualityLabel(prog),
+        ext: prog.ext || "mp4",
+        url: prog.url,
         hasAudio: true,
       });
     }
@@ -409,22 +655,31 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. YouTube: try yt-dlp first, then fallback to btch
-    if (platform === "youtube") {
-      try {
-        const info = await getVideoInfo(url);
-        const meta = buildYtDlpMeta(info, url, platform);
-        return NextResponse.json({ success: true, isMock: false, data: meta }, { headers: corsHeaders });
-      } catch (ytDlpErr) {
-        console.warn("[YouTube] yt-dlp failed, trying direct stream engine...", ytDlpErr);
-        const ytMeta = await extractYouTubeFallback(url);
-        if (ytMeta) {
-          return NextResponse.json({ success: true, isMock: false, data: ytMeta }, { headers: corsHeaders });
-        }
+    // 3. Instagram direct real extraction
+    if (platform === "instagram") {
+      const igMeta = await extractInstagram(url);
+      if (igMeta) {
+        return NextResponse.json({ success: true, isMock: false, data: igMeta }, { headers: corsHeaders });
       }
     }
 
-    // 4. Other platforms: try yt-dlp
+    // 4. Twitter / X direct real extraction
+    if (platform === "x") {
+      const twMeta = await extractTwitter(url);
+      if (twMeta) {
+        return NextResponse.json({ success: true, isMock: false, data: twMeta }, { headers: corsHeaders });
+      }
+    }
+
+    // 5. YouTube direct real extraction with verified audio
+    if (platform === "youtube") {
+      const ytMeta = await extractYouTube(url);
+      if (ytMeta) {
+        return NextResponse.json({ success: true, isMock: false, data: ytMeta }, { headers: corsHeaders });
+      }
+    }
+
+    // 6. Other platforms: try yt-dlp with strict audio verification
     try {
       const info = await getVideoInfo(url);
       const meta = buildYtDlpMeta(info, url, platform);

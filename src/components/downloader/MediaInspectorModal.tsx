@@ -41,7 +41,7 @@ export function MediaInspectorModal() {
   const formats = activeMetadata?.formats ?? [];
 
   const videoFormats = useMemo(
-    () => formats.filter((f) => f.type === "video"),
+    () => formats.filter((f) => f.type === "video" && f.hasAudio !== false),
     [formats]
   );
   const audioFormats = useMemo(
@@ -53,12 +53,11 @@ export function MediaInspectorModal() {
     [formats]
   );
 
-  // Automatically select the best format WITH AUDIO by default
+  // Automatically select the best format with audio by default
   useEffect(() => {
     if (activeMetadata) {
       if (activeTab === "video" && videoFormats.length > 0) {
-        const bestWithAudio = videoFormats.find((f) => f.hasAudio !== false);
-        setSelectedFormat(bestWithAudio || videoFormats[0]);
+        setSelectedFormat(videoFormats[0]);
       } else if (activeTab === "audio" && audioFormats.length > 0) {
         setSelectedFormat(audioFormats[0]);
       } else if (activeTab === "image" && imageFormats.length > 0) {
@@ -380,15 +379,10 @@ function FormatRow({
               {format.fps}fps
             </Badge>
           )}
-          {format.type === "video" && format.hasAudio !== false && (
+          {format.type === "video" && (
             <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-400 border border-emerald-500/30">
               🔊 Audio
             </span>
-          )}
-          {format.hasAudio === false && (
-            <Badge variant="warning" className="h-5 text-[10px] text-amber-400 border-amber-500/40 bg-amber-500/10">
-              🔇 No Audio
-            </Badge>
           )}
         </div>
         <div className="mt-0.5 flex gap-2 text-xs text-zinc-500">
